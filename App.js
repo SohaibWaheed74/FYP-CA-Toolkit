@@ -3,6 +3,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeTabs from "./screens/HomeTabs";
 import InstructionDesign from "./screens/InstructionDesign";
+import Compare from "./screens/Compare";
 
 const Stack = createNativeStackNavigator();
 
@@ -15,6 +16,7 @@ export default function App() {
 
         {/* InstructionDesign screen is outside tabs */}
         <Stack.Screen name="InstructionDesign" component={InstructionDesign} />
+        <Stack.Screen name="Compare" component={Compare} />
       </Stack.Navigator>
     </NavigationContainer>
   );

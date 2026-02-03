@@ -8,13 +8,14 @@ import {
     ScrollView,
     ActivityIndicator,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 
 const EditorScreen = () => {
+    const navigation = useNavigation();
     // STATES (UNCHANGED)
     const [code, setCode] = useState("");
     const [error, setError] = useState("");
     const [isRunning, setIsRunning] = useState(false);
-
 
     // HANDLERS (UNCHANGED)
     const handleRun = async () => {
@@ -28,6 +29,10 @@ const EditorScreen = () => {
         } finally {
             setIsRunning(false);
         }
+    };
+    
+    const handleCompare = () => { 
+        navigation.navigate("Compare");
     };
 
     const handleRunStep = async () => { };
@@ -65,6 +70,11 @@ const EditorScreen = () => {
 
                         <TouchableOpacity style={styles.outlineBtn} onPress={handleOpen}>
                             <Text style={styles.outlineText}>Open</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <View>
+                        <TouchableOpacity style={styles.compareButton} onPress={handleCompare}>
+                            <Text style={styles.compareButtonText}>Compare</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -217,5 +227,26 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: "600",
     },
+    compareButton: {
+  backgroundColor: "#1E3A8A", // deep blue (same family as header)
+  paddingVertical: 14,
+  borderRadius: 10,
+  alignItems: "center",
+  justifyContent: "center",
+  marginVertical: 12,
+  elevation: 3,              // Android shadow
+  shadowColor: "#000",        // iOS shadow
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.2,
+  shadowRadius: 4,
+},
+
+compareButtonText: {
+  color: "#FFFFFF",
+  fontSize: 16,
+  fontWeight: "600",
+  letterSpacing: 0.5,
+},
+
 
 });

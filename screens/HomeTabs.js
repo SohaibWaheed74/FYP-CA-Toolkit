@@ -1,31 +1,14 @@
 import React from "react";
 import { View, Text } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-
-// ✅ REAL SCREEN (already created)
+import Ionicons from "react-native-vector-icons/Ionicons"; 
 import Dashboard from "./Dashboard";
-import CPUDesign from "./CpuDesign";
 import CpuDesignStack from "./CpuDesignStack"; 
-import Editor from "./Editor";
-
-// 🚧 FUTURE SCREENS (will be added later)
-// import InstructionDesign from "./InstructionDesign";
-// import ProgramEditor from "./ProgramEditor";
-// import RegisterVisualization from "./RegisterVisualization";
-// import ViewMemory from "./ViewMemory";
-// import Details from "./Details";
-// import Search from "./Search";
-
-// ✅ COMMON HEADER
+import EditorStack from "./EditorStack";
 import AppHeader from "../components/AppHeader";
 
 const Tab = createBottomTabNavigator();
 
-/*
-  🔹 Temporary Dummy Screen
-  Used ONLY until real screens are created.
-  Replace this later with actual screen components.
-*/
 const DummyScreen = ({ title }) => (
   <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
     <Text style={{ fontSize: 20 }}>{title} Screen (Coming Soon)</Text>
@@ -36,35 +19,67 @@ const HomeTabs = () => {
   return (
     <Tab.Navigator
       screenOptions={{
-        header: () => <AppHeader />, // 🔥 COMMON HEADER FOR ALL TABS
+        header: () => <AppHeader />, 
         tabBarStyle: { height: 65 },
         tabBarLabelStyle: { fontSize: 11 },
-         tabBarActiveTintColor: "#1F3C88",
+        tabBarActiveTintColor: "#1F3C88",
       }}
     >
-      {/* ✅ DASHBOARD (REAL SCREEN) */}
-      <Tab.Screen name="Dashboard" component={Dashboard} />
+      {/* ✅ DASHBOARD */}
+      <Tab.Screen
+        name="Dashboard"
+        component={Dashboard}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size} color={color} />
+          ),
+        }}
+      />
 
-      {/* 🚧 CPU SCREEN
-          Replace DummyScreen with:
-          component={CPUDesign}
-      */}
-      {/* <Tab.Screen name="CPU" component={CPUDesign} /> */}
-      <Tab.Screen name="CPU" component={CpuDesignStack} />
-
+      {/* 🚧 CPU SCREEN */}
+      <Tab.Screen
+        name="CPU"
+        component={CpuDesignStack}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="hardware-chip-outline" size={size} color={color} />
+          ),
+        }}
+      />
 
       {/* 🚧 PROGRAM EDITOR SCREEN */}
-      <Tab.Screen name="Editor" component={Editor}/>
-       
+      <Tab.Screen
+        name="Editor"
+        component={EditorStack}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="create-outline" size={size} color={color} />
+          ),
+        }}
+      />
 
       {/* 🚧 REGISTER VISUALIZATION SCREEN */}
-      <Tab.Screen name="Registers viz">
+      <Tab.Screen
+        name="Registers viz"
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="albums-outline" size={size} color={color} />
+          ),
+        }}
+      >
         {() => <DummyScreen title="Registers" />}
       </Tab.Screen>
-      <Tab.Screen name="Memory viz">
+
+      <Tab.Screen
+        name="Memory viz"
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="server-outline" size={size} color={color} />
+          ),
+        }}
+      >
         {() => <DummyScreen title="Memory" />}
       </Tab.Screen>
-      
     </Tab.Navigator>
   );
 };

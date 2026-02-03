@@ -1,11 +1,12 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import Ionicons from "react-native-vector-icons/Ionicons";
 
 const AppHeader = () => {
   return (
     <View style={styles.header}>
-      <Icon name="cpu-64-bit" size={26} color="#fff" />
+     
+      <Ionicons name="hardware-chip-outline" size={26} color="#fff" />
       <Text style={styles.title}>Computer Architecture Toolkit</Text>
     </View>
   );
