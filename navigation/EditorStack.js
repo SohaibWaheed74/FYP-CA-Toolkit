@@ -1,7 +1,8 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import Editor from "./Editor";
-import Compare from "./Compare";
+import Editor from "../screens/Editor";
+import Compare from "../screens/Compare";
+import RegisterVisualization from "../screens/RegisterVisualization";
 
 const Stack = createNativeStackNavigator();
 
@@ -10,6 +11,8 @@ const EditorStack = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Editor" component={Editor} />
       <Stack.Screen name="Compare" component={Compare} />
+      <Stack.Screen name="RegisterVisualization" component={RegisterVisualization} />
+
     </Stack.Navigator>
   );
 };

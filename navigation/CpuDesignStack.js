@@ -1,9 +1,9 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-import CpuDesign from "./CpuDesign";
-import RegisterDesign from "./RegisterDesign";
-import InstructionDesign from "./InstructionDesign";
+import CpuDesign from "../screens/CpuDesign";
+import RegisterDesign from "../screens/RegisterDesign";
+import InstructionDesign from "../screens/InstructionDesign";
 
 const Stack = createNativeStackNavigator();
 

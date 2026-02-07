@@ -3,9 +3,10 @@ import { View, Text } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import Ionicons from "react-native-vector-icons/Ionicons"; 
 import Dashboard from "./Dashboard";
-import CpuDesignStack from "./CpuDesignStack"; 
-import EditorStack from "./EditorStack";
+import CpuDesignStack from "../navigation/CpuDesignStack"; 
+import EditorStack from "../navigation/EditorStack";
 import AppHeader from "../components/AppHeader";
+import RegisterVisualization from "./RegisterVisualization";
 
 const Tab = createBottomTabNavigator();
 
@@ -61,14 +62,14 @@ const HomeTabs = () => {
       {/* 🚧 REGISTER VISUALIZATION SCREEN */}
       <Tab.Screen
         name="Registers viz"
+        component={RegisterVisualization}
         options={{
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="albums-outline" size={size} color={color} />
           ),
         }}
-      >
-        {() => <DummyScreen title="Registers" />}
-      </Tab.Screen>
+      />
+      
 
       <Tab.Screen
         name="Memory viz"

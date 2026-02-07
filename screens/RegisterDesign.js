@@ -102,6 +102,7 @@ const RegisterDesign = () => {
       <TextInput
         style={styles.input}
         placeholder="Enter Flag register name"
+        placeholderTextColor="black"
         value={flagRegisterName}
         onChangeText={setFlagRegisterName}
       />
@@ -110,6 +111,7 @@ const RegisterDesign = () => {
       <TextInput
         style={[styles.input, styles.textArea]}
         placeholder="// Write Java Code Here for Logic of Flag Register"
+        placeholderTextColor="black"
         value={flagRegisterAction}
         onChangeText={setFlagRegisterAction}
         multiline
@@ -124,6 +126,7 @@ const RegisterDesign = () => {
       <TextInput
         style={styles.input}
         placeholder="Enter register name"
+        placeholderTextColor="black"
         value={gpRegisterName}
         onChangeText={setGpRegisterName}
       />
@@ -152,7 +155,7 @@ const RegisterDesign = () => {
         data={addressingCodes}
         labelField="label"
         valueField="value"
-        placeholder="Select Addressing Modes Code"
+        placeholder="Select Addressing Mode Code"
         value={addrCode}
         onChange={(item) => setAddrCode(item.value)}
       />
@@ -161,6 +164,7 @@ const RegisterDesign = () => {
       <TextInput
         style={styles.input}
         placeholder="Enter Symbol"
+        placeholderTextColor="black"
         value={symbol}
         onChangeText={setSymbol}
       />

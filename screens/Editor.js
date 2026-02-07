@@ -18,17 +18,9 @@ const EditorScreen = () => {
     const [isRunning, setIsRunning] = useState(false);
 
     // HANDLERS (UNCHANGED)
-    const handleRun = async () => {
-        setIsRunning(true);
-        setError("");
-
-        try {
-            setError("No Errors");
-        } catch (err) {
-            setError("Execution failed.");
-        } finally {
-            setIsRunning(false);
-        }
+   
+     const handleRun = () => { 
+        navigation.navigate("RegisterVisualization");
     };
     
     const handleCompare = () => { 

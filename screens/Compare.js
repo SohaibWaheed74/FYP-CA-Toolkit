@@ -20,7 +20,7 @@ const Compare = ({ navigation }) => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color="#1E3A8A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Compare Programs</Text>
         <View style={{ width: 24 }} />
@@ -136,13 +136,13 @@ export default Compare;
 const styles = StyleSheet.create({
   header: {
     height: 56,
-    backgroundColor: "#1E3A8A",
+    backgroundColor: "white",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
   },
-  headerTitle: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  headerTitle: { color: "#1E3A8A", fontSize: 16, fontWeight: "900" },
   container: { flex: 1, backgroundColor: "#F8FAFC" },
   content: { padding: 10, paddingBottom: 24 },
   parallelRow: { flexDirection: "row", justifyContent: "space-between" },

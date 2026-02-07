@@ -139,6 +139,7 @@ export default function InstructionDesign({ route }) {
                     <TextInput
                         style={styles.input}
                         placeholder="Enter instruction Code(e.g., 01)"
+                        placeholderTextColor="black"
                         value={opcode}
                         onChangeText={setOpcode}
                     />
@@ -148,6 +149,7 @@ export default function InstructionDesign({ route }) {
                     <TextInput
                         style={styles.input}
                         placeholder="Enter Mnemonic(e.g., ADD, SUB)"
+                        placeholderTextColor="black"
                         value={mnemonic}
                         onChangeText={setMnemonic}
                     />
@@ -243,6 +245,7 @@ export default function InstructionDesign({ route }) {
                         multiline
                         value={action}
                         placeholder="// Write Java Code Here for Logic of Instruction"
+                        placeholderTextColor="black"
                         onChangeText={setAction}
                     />
 
