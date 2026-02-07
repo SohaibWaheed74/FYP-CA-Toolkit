@@ -8,18 +8,13 @@ import {
     ScrollView,
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
+import Ionicons from "react-native-vector-icons/Ionicons";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 const OPERAND_TYPES = [
     { label: "Register", value: "Register" },
     { label: "Immediate", value: "Immediate" },
     { label: "Memory", value: "Memory" },
-];
-
-const REGISTER_OPTIONS = [
-    { label: "R0", value: "R0" },
-    { label: "R1", value: "R1" },
-    { label: "R2", value: "R2" },
-    { label: "R3", value: "R3" },
 ];
 
 const INTERRUPT_SYMBOLS = [
@@ -28,9 +23,14 @@ const INTERRUPT_SYMBOLS = [
     { label: "INT 2", value: "INT2" },
 ];
 
-export default function InstructionDesign({ route }) {
+export default function InstructionDesign() {
+    const navigation = useNavigation();
+    const route = useRoute();
 
-    const registers = route?.params?.registers || REGISTER_OPTIONS;
+    const { cpuData, flagRegisters, gpRegisters, addressingList } =
+        route.params || {};
+
+    const registers = gpRegisters?.map(r => ({ label: r, value: r })) || [];
 
     const [opcode, setOpcode] = useState("");
     const [mnemonic, setMnemonic] = useState("");
@@ -47,7 +47,7 @@ export default function InstructionDesign({ route }) {
 
     const [instructions, setInstructions] = useState([]);
 
-    
+    // OPERAND FUNCTIONS
     const addOperand = () => {
         setOperands(prev => [
             ...prev,
@@ -61,18 +61,14 @@ export default function InstructionDesign({ route }) {
         );
     };
 
-    const selectDestination = (id) => {
+    const selectDestination = id => {
         setOperands(prev =>
-            prev.map(op => ({
-                ...op,
-                isDestination: op.id === id,
-            }))
+            prev.map(op => ({ ...op, isDestination: op.id === id }))
         );
     };
 
-    const deleteOperand = (id) => {
+    const deleteOperand = id => {
         if (operands.length === 1) return;
-
         let updated = operands.filter(op => op.id !== id);
         if (!updated.some(op => op.isDestination)) {
             updated[0].isDestination = true;
@@ -80,7 +76,7 @@ export default function InstructionDesign({ route }) {
         setOperands(updated);
     };
 
-
+    // ADD INSTRUCTION
     const handleAddInstruction = () => {
         const instruction = {
             opcode,
@@ -93,10 +89,9 @@ export default function InstructionDesign({ route }) {
             action,
         };
 
-        console.log("Instruction Added:", instruction);
         setInstructions(prev => [...prev, instruction]);
 
-        // RESET
+        // RESET FIELDS AFTER ADDING
         setOpcode("");
         setMnemonic("");
         setAction("");
@@ -106,20 +101,32 @@ export default function InstructionDesign({ route }) {
         setOutputRegister(null);
         setIsInterrupt(false);
     };
-    // CREATE ARCHITECTURE 
+
     const handleCreateArchitecture = () => {
-        const architecture = { cpuData, registers, instructions, }; 
-        console.log("Final Architecture:", architecture); 
-        // 🔜 FUTURE API CALL 
-        // api.post("/architecture", architecture) 
+        const architecture = {
+            cpuData,
+            flagRegisters,
+            gpRegisters,
+            addressingList,
+            instructions,
         };
+        console.log("Final Architecture:", architecture);
+        navigation.navigate("Testing", { architecture });
+    };
 
+    return (
+        <View style={{ flex: 1 }}>
+            {/* HEADER */}
+            <View style={styles.header}>
+                <TouchableOpacity onPress={() => navigation.goBack()}>
+                    <Ionicons name="arrow-back" size={24} color="#1E3A8A" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Instruction Design</Text>
+                <View style={{ width: 24 }} />
+            </View>
 
-        return (
             <ScrollView contentContainerStyle={styles.container}>
                 <View style={styles.card}>
-                    <Text style={styles.title}>Instruction Design</Text>
-
                     {/* INTERRUPT TOGGLE */}
                     <TouchableOpacity
                         style={styles.checkboxRow}
@@ -172,9 +179,7 @@ export default function InstructionDesign({ route }) {
                                         labelField="label"
                                         valueField="value"
                                         value={op.type}
-                                        onChange={item =>
-                                            updateOperandType(op.id, item.value)
-                                        }
+                                        onChange={item => updateOperandType(op.id, item.value)}
                                     />
 
                                     <TouchableOpacity
@@ -201,42 +206,40 @@ export default function InstructionDesign({ route }) {
                         </>
                     )}
 
-                    {/* INTERRUPT */}
-                    {isInterrupt && (
-                        <>
-                            <Text style={styles.label}>Interrupt</Text>
-                            <Dropdown
-                                style={styles.dropdownFull}
-                                data={INTERRUPT_SYMBOLS}
-                                labelField="label"
-                                valueField="value"
-                                value={interruptSymbol}
-                                onChange={item => setInterruptSymbol(item.value)}
-                            />
+                    {/* INTERRUPT INSTRUCTION - ALWAYS MOUNTED */}
+                    <View style={{ display: isInterrupt ? "flex" : "none" }}>
+                        <Text style={styles.label}>Interrupt</Text>
+                        <Dropdown
+                            style={styles.dropdownFull}
+                            data={INTERRUPT_SYMBOLS}
+                            labelField="label"
+                            valueField="value"
+                            value={interruptSymbol}
+                            onChange={item => setInterruptSymbol(item.value)}
+                        />
 
-                            <Text style={styles.label}>Input Register</Text>
-                            <Dropdown
-                                style={styles.dropdownFull}
-                                placeholder="Select Input Register"
-                                data={registers}
-                                labelField="label"
-                                valueField="value"
-                                value={inputRegister}
-                                onChange={item => setInputRegister(item.value)}
-                            />
+                        <Text style={styles.label}>Input Register</Text>
+                        <Dropdown
+                            style={styles.dropdownFull}
+                            placeholder="Select Input Register"
+                            data={registers}
+                            labelField="label"
+                            valueField="value"
+                            value={inputRegister}
+                            onChange={item => setInputRegister(item.value)}
+                        />
 
-                            <Text style={styles.label}>Output Register</Text>
-                            <Dropdown
-                                style={styles.dropdownFull}
-                                placeholder="Select Output Register"
-                                data={registers}
-                                labelField="label"
-                                valueField="value"
-                                value={outputRegister}
-                                onChange={item => setOutputRegister(item.value)}
-                            />
-                        </>
-                    )}
+                        <Text style={styles.label}>Output Register</Text>
+                        <Dropdown
+                            style={styles.dropdownFull}
+                            placeholder="Select Output Register"
+                            data={registers}
+                            labelField="label"
+                            valueField="value"
+                            value={outputRegister}
+                            onChange={item => setOutputRegister(item.value)}
+                        />
+                    </View>
 
                     {/* ACTION */}
                     <Text style={styles.label}>Action</Text>
@@ -249,103 +252,150 @@ export default function InstructionDesign({ route }) {
                         onChangeText={setAction}
                     />
 
-                    <TouchableOpacity style={styles.button} onPress={handleAddInstruction}>
+                    {/* ADD INSTRUCTION */}
+                    <TouchableOpacity
+                        style={styles.button}
+                        onPress={handleAddInstruction}
+                    >
                         <Text style={styles.buttonText}>ADD</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.createBtn} onPress={handleCreateArchitecture} >
-                        <Text style={styles.buttonText}>CreateArchitecture</Text>
+
+                    {/* DISPLAY ADDED INSTRUCTIONS */}
+                    {instructions.map((instr, index) => (
+                        <View key={index} style={styles.instructionCard}>
+                            <Text style={styles.cardTitle}>
+                                {instr.mnemonic || "(No Mnemonic)"}
+                            </Text>
+                            <Text>Opcode: {instr.opcode}</Text>
+                            {instr.isInterrupt ? (
+                                <>
+                                    <Text>Interrupt: {instr.interruptSymbol}</Text>
+                                    <Text>Input Register: {instr.inputRegister}</Text>
+                                    <Text>Output Register: {instr.outputRegister}</Text>
+                                </>
+                            ) : (
+                                <Text>
+                                    Operands:{" "}
+                                    {instr.operands
+                                        .map(op => `${op.type}${op.isDestination ? "(D)" : ""}`)
+                                        .join(", ")}
+                                </Text>
+                            )}
+                            <Text>Action: {instr.action || "(No Action)"}</Text>
+                        </View>
+                    ))}
+
+                    {/* CREATE ARCHITECTURE */}
+                    <TouchableOpacity
+                        style={styles.createBtn}
+                        onPress={handleCreateArchitecture}
+                    >
+                        <Text style={styles.buttonText}>Create Architecture</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
-        );
-    }
+        </View>
+    );
+}
 
-    /* =======================
-            STYLES
-    ======================= */
-
-    const styles = StyleSheet.create({
-        container: { padding: 16, backgroundColor: "#f5f7fb" },
-        card: { backgroundColor: "#fff", padding: 16, borderRadius: 12 },
-        title: { fontSize: 20, fontWeight: "600", textAlign: "center" },
-        label: { marginTop: 12, fontWeight: "bold" },
-        input: {
-            borderWidth: 1,
-            borderColor: "#ccc",
-            borderRadius: 6,
-            padding: 10,
-        },
-        operandRow: {
-            flexDirection: "row",
-            alignItems: "center",
-            marginVertical: 6,
-        },
-        dropdown: {
-            width: 130,
-            height: 40,
-            borderWidth: 1,
-            borderColor: "#ccc",
-            marginHorizontal: 6,
-        },
-        dropdownFull: {
-            height: 42,
-            borderWidth: 1,
-            borderColor: "#ccc",
-            marginVertical: 6,
-        },
-        radio: {
-            width: 18,
-            height: 18,
-            borderWidth: 2,
-            borderRadius: 9,
-            borderColor: "#1f3c88",
-        },
-        radioSelected: { backgroundColor: "#1f3c88" },
-        plus: { fontSize: 22, marginLeft: 4 },
-        delete: { fontSize: 18, marginLeft: 4 },
-        button: {
-            backgroundColor: "#1f3c88",
-            padding: 12,
-            borderRadius: 8,
-            marginTop: 16,
-        },
-        buttonText: { 
-            color: "#fff", 
-            textAlign: "center" 
-        },
-        checkboxRow: { 
-            flexDirection: "row", 
-            alignItems: "center", 
-            marginBottom: 10 
-        },
-        checkbox: {
-            width: 18,
-            height: 18,
-            borderWidth: 2,
-            borderColor: "#1f3c88",
-        },
-        checkboxChecked: {
-            backgroundColor: "#1f3c88"
-        },
-        headerRow: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 8,
-            paddingHorizontal: 2,
-            paddingRight: 115
-        },
-        createBtn: { 
-            backgroundColor: "#1f3c88", 
-            padding: 12, 
-            borderRadius: 8, 
-            marginTop: 10, 
-        },
-        buttonText: { 
-            color: "#fff", 
-            textAlign: "center", 
-            fontWeight: "600", 
-
-        },
-
-    });
+// ===== STYLES =====
+const styles = StyleSheet.create({
+    header: {
+        height: 56,
+        backgroundColor: "white",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: "#ccc",
+    },
+    headerTitle: {
+        color: "#1E3A8A",
+        fontSize: 22,
+        fontWeight: "bold",
+        textAlign: "center",
+    },
+    container: { padding: 16, backgroundColor: "#f5f7fb" },
+    card: { backgroundColor: "#fff", padding: 16, borderRadius: 12 },
+    label: { marginTop: 12, fontWeight: "bold" },
+    input: {
+        borderWidth: 1,
+        borderColor: "#ccc",
+        borderRadius: 6,
+        padding: 10,
+    },
+    operandRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginVertical: 6,
+    },
+    dropdown: {
+        width: 130,
+        height: 40,
+        borderWidth: 1,
+        borderColor: "#ccc",
+        marginHorizontal: 6,
+    },
+    dropdownFull: {
+        height: 42,
+        borderWidth: 1,
+        borderColor: "#ccc",
+        marginVertical: 6,
+    },
+    radio: {
+        width: 18,
+        height: 18,
+        borderWidth: 2,
+        borderRadius: 9,
+        borderColor: "#1f3c88",
+    },
+    radioSelected: { backgroundColor: "#1f3c88" },
+    plus: { fontSize: 22, marginLeft: 4 },
+    delete: { fontSize: 18, marginLeft: 4 },
+    button: {
+        backgroundColor: "#1f3c88",
+        padding: 12,
+        borderRadius: 8,
+        marginTop: 16,
+    },
+    buttonText: {
+        color: "#fff",
+        textAlign: "center",
+    },
+    checkboxRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 10,
+    },
+    checkbox: {
+        width: 18,
+        height: 18,
+        borderWidth: 2,
+        borderColor: "#1f3c88",
+    },
+    checkboxChecked: {
+        backgroundColor: "#1f3c88",
+    },
+    headerRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 8,
+        paddingHorizontal: 2,
+        paddingRight: 115,
+    },
+    createBtn: {
+        backgroundColor: "#1f3c88",
+        padding: 12,
+        borderRadius: 8,
+        marginTop: 10,
+    },
+    instructionCard: {
+        backgroundColor: "#e8eaf6",
+        padding: 12,
+        borderRadius: 8,
+        marginTop: 10,
+    },
+    cardTitle: { fontWeight: "bold", marginBottom: 4 },
+});

@@ -1,94 +1,129 @@
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-} from "react-native";
+// DashBoard.js
+import React, { useState } from "react";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView } from "react-native";
+import Ionicons from "react-native-vector-icons/Ionicons";
 
-const Dashboard = ({ navigation }) => {
-  const [data, setData] = useState([]); // holds list data
-  const [loading, setLoading] = useState(true); // loading state
+const dummyData = [
+  { id: '1', name: 'Architecture1', memory: '128 Bytes', bus: '8 bits' },
+  { id: '2', name: 'Architecture2', memory: '64 Bytes', bus: '8 bits' },
+  { id: '3', name: 'Architecture3', memory: '256 Bytes', bus: '8 bits' },
+];
 
-  // 🔹 Load data on component mount
-  useEffect(() => {
-    loadData();
-  }, []);
+const DashBoard = ({ navigation }) => {
 
-  // 🔹 Load data function (replace with API call later)
-  const loadData = async () => {
-    // Example API fetch (replace URL with your real API)
-    // try {
-    //   const response = await fetch("https://your-api.com/dashboard");
-    //   const json = await response.json();
-    //   setData(json);
-    // } catch (error) {
-    //   console.error(error);
-    // }
-
-    // For now, we use mock data
-    const mockData = [
-      { id: 1, title: "CPU Design", description: "Visualize CPU components", route: "CPU" },
-      { id: 2, title: "Instruction Set", description: "Supported instructions", route: "Instruction" },
-      { id: 3, title: "Registers", description: "Register visualization", route: "Registers" },
-    ];
-
-    setData(mockData);
-    setLoading(false);
-  };
-
-  // 🔹 Handle item click
-  const handleItemPress = (item) => {
-    // Navigate to route (if using react-navigation)
-    // navigation.navigate(item.route);
-
-    // For now, just alert
-    alert(`Clicked on ${item.title}`);
-  };
-
-  // 🔹 Render each FlatList item
   const renderItem = ({ item }) => (
-    <TouchableOpacity style={styles.card} onPress={() => handleItemPress(item)}>
-      <Text style={styles.title}>{item.title}</Text>
-      <Text style={styles.desc}>{item.description}</Text>
-    </TouchableOpacity>
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Ionicons name="hardware-chip-outline" size={20} color="#333" />
+        <Text style={styles.cardTitle}>{item.name}</Text>
+      </View>
+      <Text style={styles.cardText}>Memory: {item.memory}</Text>
+      <Text style={styles.cardText}>Bus: {item.bus}</Text>
+
+      <View style={styles.cardButtons}>
+        <TouchableOpacity style={styles.useButton}>
+          <Text style={styles.buttonText}>Use</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.updateButton}>
+          <Text style={styles.buttonText}>Update</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.detailsButton}>
+          <Text style={styles.buttonText}>Details</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 
-  // 🔹 Show loading spinner
-  if (loading) {
-    return <ActivityIndicator size="large" style={{ marginTop: 40 }} />;
-  }
-
   return (
-    <FlatList
-      data={data}
-      keyExtractor={(item) => item.id.toString()}
-      renderItem={renderItem}
-      contentContainerStyle={{ padding: 16 }}
-    />
+    <View style={styles.container}>
+      <Text style={styles.header}>My Architectures</Text>
+      <Text style={styles.subHeader}>Manage and explore your computer architecture designs</Text>
+
+      <FlatList
+        data={dummyData}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ paddingBottom: 20 }}
+        showsVerticalScrollIndicator={false}
+      />
+    </View>
   );
 };
 
-export default Dashboard;
+export default DashBoard;
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 10,
-    marginBottom: 12,
-    elevation: 2, // shadow for Android
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    paddingHorizontal: 15,
+    paddingTop: 20,
   },
-  title: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 4,
-    color: "#0f172a",
+  header: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 5,
   },
-  desc: {
+  subHeader: {
     fontSize: 14,
-    color: "#475569",
+    color: '#555',
+    marginBottom: 15,
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 15,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  cardText: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 5,
+  },
+  cardButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  useButton: {
+    flex: 1,
+    backgroundColor: '#1e40af',
+    padding: 8,
+    borderRadius: 8,
+    marginRight: 5,
+    alignItems: 'center',
+  },
+  updateButton: {
+    flex: 1,
+    backgroundColor: '#2563eb',
+    padding: 8,
+    borderRadius: 8,
+    marginRight: 5,
+    alignItems: 'center',
+  },
+  detailsButton: {
+    flex: 1,
+    backgroundColor: '#60a5fa',
+    padding: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
 });

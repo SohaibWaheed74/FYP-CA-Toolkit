@@ -8,10 +8,10 @@ import {
   ScrollView,
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
-import { useNavigation } from "@react-navigation/native";
+import Ionicons from "react-native-vector-icons/Ionicons";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 const addressingModes = [
-
   { label: "Direct Addressing Mode", value: "Direct" },
   { label: "Indirect Addressing Mode", value: "Indirect" },
   { label: "Indexed Addressing Mode", value: "Indexed" },
@@ -26,6 +26,9 @@ const addressingCodes = [
 
 const RegisterDesign = () => {
   const navigation = useNavigation();
+  const route = useRoute();
+
+  const { cpuData } = route.params || {};
 
   /* ================= Registers ================= */
   const [flagRegisterName, setFlagRegisterName] = useState("");
@@ -43,17 +46,11 @@ const RegisterDesign = () => {
   const [addressingList, setAddressingList] = useState([]);
 
   /* ================= Functions ================= */
-
   const addFlagRegister = () => {
     if (!flagRegisterName || !flagRegisterAction) return;
 
-    setFlagRegisters([
-      ...flagRegisters,
-      {
-        name: flagRegisterName,
-        action: flagRegisterAction,
-      },
-    ]);
+    const newFlag = { name: flagRegisterName, action: flagRegisterAction };
+    setFlagRegisters([...flagRegisters, newFlag]);
 
     setFlagRegisterName("");
     setFlagRegisterAction("");
@@ -69,14 +66,8 @@ const RegisterDesign = () => {
   const addAddressingMode = () => {
     if (!addrMode || !addrCode || !symbol) return;
 
-    setAddressingList([
-      ...addressingList,
-      {
-        mode: addrMode,
-        code: addrCode,
-        symbol: symbol,
-      },
-    ]);
+    const newAddr = { mode: addrMode, code: addrCode, symbol };
+    setAddressingList([...addressingList, newAddr]);
 
     setAddrMode(null);
     setAddrCode(null);
@@ -85,6 +76,7 @@ const RegisterDesign = () => {
 
   const handleNext = () => {
     navigation.navigate("InstructionDesign", {
+      cpuData,
       flagRegisters,
       gpRegisters,
       addressingList,
@@ -92,110 +84,149 @@ const RegisterDesign = () => {
   };
 
   /* ================= UI ================= */
-
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Register Design</Text>
+    <View style={{ flex: 1 }}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color="#1E3A8A" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Register Design</Text>
+        <View style={{ width: 24 }} />
+      </View>
 
-      {/* -------- Flag Register -------- */}
-      <Text style={styles.label}>Flag Register Name</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter Flag register name"
-        placeholderTextColor="black"
-        value={flagRegisterName}
-        onChangeText={setFlagRegisterName}
-      />
+      <ScrollView contentContainerStyle={styles.container}>
+        {/* -------- Flag Register -------- */}
+        <Text style={styles.label}>Flag Register Name</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter Flag register name"
+          placeholderTextColor="black"
+          value={flagRegisterName}
+          onChangeText={setFlagRegisterName}
+        />
 
-      <Text style={styles.label}>Flag Register Action</Text>
-      <TextInput
-        style={[styles.input, styles.textArea]}
-        placeholder="// Write Java Code Here for Logic of Flag Register"
-        placeholderTextColor="black"
-        value={flagRegisterAction}
-        onChangeText={setFlagRegisterAction}
-        multiline
-      />
+        <Text style={styles.label}>Flag Register Action</Text>
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          placeholder="// Write Java Code Here for Logic of Flag Register"
+          placeholderTextColor="black"
+          value={flagRegisterAction}
+          onChangeText={setFlagRegisterAction}
+          multiline
+        />
 
-      <TouchableOpacity style={styles.addBtn} onPress={addFlagRegister}>
-        <Text style={styles.btnText}>ADD</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.addBtn} onPress={addFlagRegister}>
+          <Text style={styles.btnText}>ADD</Text>
+        </TouchableOpacity>
 
-      {/* -------- GP Register -------- */}
-      <Text style={styles.label}>GP Register Name</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter register name"
-        placeholderTextColor="black"
-        value={gpRegisterName}
-        onChangeText={setGpRegisterName}
-      />
+        {/* Display Flag Registers */}
+        {flagRegisters.map((flag, index) => (
+          <View key={index} style={styles.card}>
+            <Text style={styles.cardTitle}>Name: {flag.name}</Text>
+            <Text>Action: {flag.action}</Text>
+          </View>
+        ))}
 
-      <TouchableOpacity style={styles.addBtn} onPress={addGpRegister}>
-        <Text style={styles.btnText}>ADD</Text>
-      </TouchableOpacity>
+        {/* -------- GP Register -------- */}
+        <Text style={styles.label}>GP Register Name</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter register name"
+          placeholderTextColor="black"
+          value={gpRegisterName}
+          onChangeText={setGpRegisterName}
+        />
 
-      {/* -------- Addressing Modes -------- */}
-      <Text style={styles.sectionTitle}>Add Addressing Modes</Text>
+        <TouchableOpacity style={styles.addBtn} onPress={addGpRegister}>
+          <Text style={styles.btnText}>ADD</Text>
+        </TouchableOpacity>
 
-      <Text style={styles.label}>Addressing Mode</Text>
-      <Dropdown
-        style={styles.dropdown}
-        data={addressingModes}
-        labelField="label"
-        valueField="value"
-        placeholder="Select addressing mode"
-        value={addrMode}
-        onChange={(item) => setAddrMode(item.value)}
-      />
+        {/* Display GP Registers */}
+        {gpRegisters.map((gp, index) => (
+          <View key={index} style={styles.card}>
+            <Text style={styles.cardTitle}>{gp}</Text>
+          </View>
+        ))}
 
-      <Text style={styles.label}>Addressing Mode Code</Text>
-      <Dropdown
-        style={styles.dropdown}
-        data={addressingCodes}
-        labelField="label"
-        valueField="value"
-        placeholder="Select Addressing Mode Code"
-        value={addrCode}
-        onChange={(item) => setAddrCode(item.value)}
-      />
+        {/* -------- Addressing Modes -------- */}
+        <Text style={styles.sectionTitle}>Add Addressing Modes</Text>
 
-      <Text style={styles.label}>Symbol</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter Symbol"
-        placeholderTextColor="black"
-        value={symbol}
-        onChangeText={setSymbol}
-      />
+        <Text style={styles.label}>Addressing Mode</Text>
+        <Dropdown
+          style={styles.dropdown}
+          data={addressingModes}
+          labelField="label"
+          valueField="value"
+          placeholder="Select addressing mode"
+          value={addrMode}
+          onChange={(item) => setAddrMode(item.value)}
+        />
 
-      <TouchableOpacity style={styles.addBtn} onPress={addAddressingMode}>
-        <Text style={styles.btnText}>ADD</Text>
-      </TouchableOpacity>
+        <Text style={styles.label}>Addressing Mode Code</Text>
+        <Dropdown
+          style={styles.dropdown}
+          data={addressingCodes}
+          labelField="label"
+          valueField="value"
+          placeholder="Select Addressing Mode Code"
+          value={addrCode}
+          onChange={(item) => setAddrCode(item.value)}
+        />
 
-      {/* -------- Next -------- */}
-      <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
-        <Text style={styles.btnText}>Next</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <Text style={styles.label}>Symbol</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter Symbol"
+          placeholderTextColor="black"
+          value={symbol}
+          onChangeText={setSymbol}
+        />
+
+        <TouchableOpacity style={styles.addBtn} onPress={addAddressingMode}>
+          <Text style={styles.btnText}>ADD</Text>
+        </TouchableOpacity>
+
+        {/* Display Addressing Modes */}
+        {addressingList.map((addr, index) => (
+          <View key={index} style={styles.card}>
+            <Text style={styles.cardTitle}>Mode: {addr.mode}</Text>
+            <Text>Code: {addr.code}</Text>
+            <Text>Symbol: {addr.symbol}</Text>
+          </View>
+        ))}
+
+        {/* -------- Next -------- */}
+        <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
+          <Text style={styles.btnText}>Next</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
   );
 };
 
 export default RegisterDesign;
 
-/* ================= Styles ================= */
-
 const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-    backgroundColor: "#f5f6fa",
+  header: {
+    height: 56,
+    backgroundColor: "white",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ccc",
   },
-  title: {
+  headerTitle: {
+    color: "#1E3A8A",
     fontSize: 22,
     fontWeight: "bold",
     textAlign: "center",
-    marginBottom: 20,
-    color: "#1f3c88",
+  },
+  container: {
+    padding: 20,
+    backgroundColor: "#f5f6fa",
+    paddingTop: 10,
   },
   sectionTitle: {
     fontSize: 16,
@@ -244,5 +275,17 @@ const styles = StyleSheet.create({
   btnText: {
     color: "#fff",
     fontWeight: "bold",
+  },
+  card: {
+    backgroundColor: "#fff",
+    padding: 12,
+    borderRadius: 6,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#ccc",
+  },
+  cardTitle: {
+    fontWeight: "bold",
+    marginBottom: 4,
   },
 });
