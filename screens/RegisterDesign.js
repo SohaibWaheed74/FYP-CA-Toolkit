@@ -11,6 +11,7 @@ import { Dropdown } from "react-native-element-dropdown";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 
+
 const addressingModes = [
   { label: "Direct Addressing Mode", value: "Direct" },
   { label: "Indirect Addressing Mode", value: "Indirect" },

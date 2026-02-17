@@ -7,6 +7,7 @@ import CpuDesignStack from "../navigation/CpuDesignStack";
 import EditorStack from "../navigation/EditorStack";
 import AppHeader from "../components/AppHeader";
 import RegisterVisualization from "./RegisterVisualization";
+import DashboardStack from "../navigation/DashboardStack"
 
 const Tab = createBottomTabNavigator();
 
@@ -29,10 +30,10 @@ const HomeTabs = () => {
       {/* ✅ DASHBOARD */}
       <Tab.Screen
         name="Dashboard"
-        component={Dashboard}
+        component={DashboardStack}
         options={{
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
+            <Ionicons name="desktop-outline" size={size} color={color} />
           ),
         }}
       />
@@ -54,7 +55,7 @@ const HomeTabs = () => {
         component={EditorStack}
         options={{
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="create-outline" size={size} color={color} />
+            <Ionicons name="code" size={size} color={color} />
           ),
         }}
       />
@@ -65,7 +66,7 @@ const HomeTabs = () => {
         component={RegisterVisualization}
         options={{
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="albums-outline" size={size} color={color} />
+            <Ionicons name="eye" size={size} color={color} />
           ),
         }}
       />

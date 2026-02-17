@@ -2,6 +2,8 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import { useNavigation } from "@react-navigation/native";
+import Detailscreen from "./Detailscreen";
 
 const dummyData = [
   { id: '1', name: 'Architecture1', memory: '128 Bytes', bus: '8 bits' },
@@ -9,7 +11,12 @@ const dummyData = [
   { id: '3', name: 'Architecture3', memory: '256 Bytes', bus: '8 bits' },
 ];
 
-const DashBoard = ({ navigation }) => {
+const DashBoard = () => {
+  const navigation = useNavigation();
+
+  const handleDetail = () => {
+    navigation.navigate("Detailscreen");
+  }
 
   const renderItem = ({ item }) => (
     <View style={styles.card}>
@@ -22,12 +29,15 @@ const DashBoard = ({ navigation }) => {
 
       <View style={styles.cardButtons}>
         <TouchableOpacity style={styles.useButton}>
-          <Text style={styles.buttonText}>Use</Text>
+          <Text style={styles.useText}>Use</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.updateButton}>
           <Text style={styles.buttonText}>Update</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.detailsButton}>
+        <TouchableOpacity
+         style={styles.detailsButton}
+         onPress={handleDetail}
+         >
           <Text style={styles.buttonText}>Details</Text>
         </TouchableOpacity>
       </View>
@@ -109,21 +119,33 @@ const styles = StyleSheet.create({
   },
   updateButton: {
     flex: 1,
-    backgroundColor: '#2563eb',
+    backgroundColor: 'white',
+    borderColor: '#1e40af',
+    borderWidth: 1,
     padding: 8,
     borderRadius: 8,
     marginRight: 5,
     alignItems: 'center',
+    onPress: {
+      backgroundColor: '#1e40af',
+    },
   },
   detailsButton: {
     flex: 1,
-    backgroundColor: '#60a5fa',
+    backgroundColor: 'white',
+    borderColor: '#1e40af',
+    borderWidth: 1,
     padding: 8,
     borderRadius: 8,
     alignItems: 'center',
+    
   },
   buttonText: {
-    color: '#fff',
+    color: '#1e40af',
+    fontWeight: 'bold',
+  },
+  useText: {
+    color: 'white',
     fontWeight: 'bold',
   },
 });
