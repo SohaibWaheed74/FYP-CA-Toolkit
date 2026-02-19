@@ -10,6 +10,13 @@ import {
 import { Dropdown } from "react-native-element-dropdown";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import {
+  createArchitecture,
+  addRegisters,
+  addInstructions,
+  addAddressingModes
+} from "../api/architectureApi";
+
 
 const OPERAND_TYPES = [
     { label: "Register", value: "Register" },
@@ -18,9 +25,8 @@ const OPERAND_TYPES = [
 ];
 
 const INTERRUPT_SYMBOLS = [
-    { label: "INT 0", value: "INT0" },
-    { label: "INT 1", value: "INT1" },
-    { label: "INT 2", value: "INT2" },
+    { label: "1(Input)", value: "1(Input)" },
+    { label: "2(Output)", value: "2(Output)" },
 ];
 
 export default function InstructionDesign() {

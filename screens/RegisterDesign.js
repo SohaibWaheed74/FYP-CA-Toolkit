@@ -123,8 +123,12 @@ const RegisterDesign = () => {
         {/* Display Flag Registers */}
         {flagRegisters.map((flag, index) => (
           <View key={index} style={styles.card}>
-            <Text style={styles.cardTitle}>Name: {flag.name}</Text>
-            <Text>Action: {flag.action}</Text>
+            <Text style={styles.submittedText}>
+              <Text style={styles.bold}>Name:</Text> {flag.name}
+            </Text>
+            <Text style={styles.submittedText}>
+              <Text style={styles.bold}>Action:</Text> {flag.action}
+            </Text>
           </View>
         ))}
 
@@ -145,7 +149,9 @@ const RegisterDesign = () => {
         {/* Display GP Registers */}
         {gpRegisters.map((gp, index) => (
           <View key={index} style={styles.card}>
-            <Text style={styles.cardTitle}>{gp}</Text>
+            <Text style={styles.submittedText}>
+              <Text style={styles.bold}>GP:</Text> {gp}
+            </Text>
           </View>
         ))}
 
@@ -190,9 +196,17 @@ const RegisterDesign = () => {
         {/* Display Addressing Modes */}
         {addressingList.map((addr, index) => (
           <View key={index} style={styles.card}>
-            <Text style={styles.cardTitle}>Mode: {addr.mode}</Text>
-            <Text>Code: {addr.code}</Text>
-            <Text>Symbol: {addr.symbol}</Text>
+            
+            <Text style={styles.submittedText}>
+              <Text style={styles.bold}>Mode:</Text> {addr.mode}
+            </Text>
+            <Text style={styles.submittedText}>
+              <Text style={styles.bold}>Code:</Text> {addr.code}
+            </Text>
+            <Text style={styles.submittedText}>
+              <Text style={styles.bold}>Symbol:</Text> {addr.symbol}
+            </Text>
+
           </View>
         ))}
 
@@ -288,5 +302,12 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontWeight: "bold",
     marginBottom: 4,
+  },
+   submittedText: {
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  bold: {
+    fontWeight: "bold",
   },
 });

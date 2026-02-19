@@ -33,6 +33,7 @@ const RegisterVisualization = () => {
   const [registers, setRegisters] = useState({});
   const [flags, setFlags] = useState({});
   const [loading, setLoading] = useState(true);
+  const [output, setOutput] = useState("");
 
   useEffect(() => {
     fetchRegisterData();
@@ -121,6 +122,12 @@ const RegisterVisualization = () => {
           <RegisterBox label="Zero" value={flags.Zero} />
         </View>
       </View>
+
+      {/* output Display */}
+      <Text style={styles.cardTitle}>OutPut Display</Text>
+      <View style={styles.outputBox}>
+        <Text style={styles.outputText}>{output || "No Output"}</Text>
+      </View>
     </ScrollView>
   );
 };
@@ -197,4 +204,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  outputTitle: { fontSize: 12, fontWeight: "600", color: "#334155", marginBottom: 4, marginTop: 2 },
+  outputBox: { backgroundColor: "white", borderRadius: 8, padding: 12, borderWidth: 1, borderColor: "#E1E7F5", minHeight: 55 },
+  outputText: { fontSize: 12, color: "#64748B" },
 });
