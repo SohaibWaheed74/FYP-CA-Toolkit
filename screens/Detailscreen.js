@@ -5,64 +5,79 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
+  Dimensions,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+
+import { getArchitectureDetails } from "../api/detailApi";
+
+const { width: screenWidth } = Dimensions.get("window");
 
 const Detailscreen = () => {
   const navigation = useNavigation();
+  const route = useRoute();
+  const { architectureId } = route.params;
 
-  const [architecture, setArchitecture] = useState(null);
+  const [architecture, setArchitecture] = useState({});
   const [flagRegisters, setFlagRegisters] = useState([]);
   const [generalRegisters, setGeneralRegisters] = useState([]);
   const [instructions, setInstructions] = useState([]);
   const [actions, setActions] = useState([]);
   const [addressingModes, setAddressingModes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const dummyApiResponse = {
-      architecture: {
-        name: "Architecture1",
-        memorySize: "128 Bytes",
-        busSize: "8-bit",
-        stackSize: "16 Bytes",
-      },
-      flagRegisters: [
-        { id: 1, name: "Zero", size: "1-bit" },
-        { id: 2, name: "Carry", size: "1-bit" },
-      ],
-      generalRegisters: [
-        { id: 1, name: "R1", size: "16-bit", role: "General Purpose" },
-        { id: 2, name: "R2", size: "16-bit", role: "General Purpose" },
-        { id: 3, name: "R3", size: "16-bit", role: "General Purpose" },
-        { id: 4, name: "R4", size: "16-bit", role: "General Purpose" },
-      ],
-      instructions: [
-        { id: 1, mnemonic: "LOAD", opcode: "10100001", set: "LOAD -> M[addr]" },
-        { id: 2, mnemonic: "STORE", opcode: "10100010", set: "STORE -> M[addr]" },
-        { id: 3, mnemonic: "ADD", opcode: "11000011", set: "ADD -> R1, R2" },
-        { id: 4, mnemonic: "SUB", opcode: "11001000", set: "SUB -> R3, R4" },
-      ],
-      actions: [
-        { id: 1, mnemonic: "LOAD", action: "R[dr] <- M[addr]" },
-        { id: 2, mnemonic: "STORE", action: "M[addr] <- R[sr]" },
-        { id: 3, mnemonic: "ADD", action: "R[dr] <- R[sr1] + R[sr2]" },
-        { id: 4, mnemonic: "SUB", action: "R[dr] <- R[sr1] - R[sr2]" },
-      ],
-      addressingModes: [
-        { id: 1, name: "Direct", instruction: "LOAD $10" },
-        { id: 2, name: "Indirect", instruction: "LOAD &10" },
-        { id: 3, name: "Indexed", instruction: "LOAD *10" },
-      ],
-    };
+    fetchArchitectureDetails();
+  }, [architectureId]);
 
-    setArchitecture(dummyApiResponse.architecture);
-    setFlagRegisters(dummyApiResponse.flagRegisters);
-    setGeneralRegisters(dummyApiResponse.generalRegisters);
-    setInstructions(dummyApiResponse.instructions);
-    setActions(dummyApiResponse.actions);
-    setAddressingModes(dummyApiResponse.addressingModes);
-  }, []);
+  const fetchArchitectureDetails = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const data = await getArchitectureDetails(architectureId);
+
+      setArchitecture(data.architecture || {});
+      setGeneralRegisters(data.generalRegisters || []);
+      setFlagRegisters(data.flagRegisters || []);
+      setInstructions(data.instructions || []);
+      setActions(data.actions || []);
+
+      // ✅ FIXED HERE
+      setAddressingModes(data.addressingModes || []);
+
+    } catch (err) {
+      console.log("Details Fetch Error:", err);
+      setError(err.message || "Failed to load architecture details");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#1E3A8A" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centered}>
+        <Text style={{ color: "red", textAlign: "center" }}>{error}</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={fetchArchitectureDetails}
+        >
+          <Text style={styles.buttonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F1F5F9" }}>
@@ -79,7 +94,6 @@ const Detailscreen = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
       >
-
         {/* SYSTEM SPECIFICATIONS */}
         <View style={styles.card}>
           <View style={styles.titleRow}>
@@ -90,30 +104,22 @@ const Detailscreen = () => {
           <View style={styles.specRow}>
             <View style={styles.specBox}>
               <Text style={styles.label}>Architecture Name</Text>
-              <Text style={styles.value}>
-                {architecture?.name ?? "-"}
-              </Text>
+              <Text style={styles.value}>{architecture?.name ?? "-"}</Text>
             </View>
             <View style={styles.specBox}>
               <Text style={styles.label}>Memory Size</Text>
-              <Text style={styles.value}>
-                {architecture?.memorySize ?? "-"}
-              </Text>
+              <Text style={styles.value}>{architecture?.memorySize ?? "-"}</Text>
             </View>
           </View>
 
           <View style={styles.specRow}>
             <View style={styles.specBox}>
               <Text style={styles.label}>Bus Size</Text>
-              <Text style={styles.value}>
-                {architecture?.busSize ?? "-"}
-              </Text>
+              <Text style={styles.value}>{architecture?.busSize ?? "-"}</Text>
             </View>
             <View style={styles.specBox}>
               <Text style={styles.label}>Stack Size</Text>
-              <Text style={styles.value}>
-                {architecture?.stackSize ?? "-"}
-              </Text>
+              <Text style={styles.value}>{architecture?.stackSize ?? "-"}</Text>
             </View>
           </View>
         </View>
@@ -122,103 +128,106 @@ const Detailscreen = () => {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Register File</Text>
 
-          <Text style={styles.subSection}>● FLAG REGISTERS</Text>
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <Text style={styles.headerCell}>Name</Text>
-              <Text style={styles.headerCell}>Size</Text>
-            </View>
-
-            {flagRegisters.map((item) => (
-              <View key={item.id} style={styles.tableRow}>
-                <Text style={styles.cell}>{item.name}</Text>
-                <Text style={styles.cell}>{item.size}</Text>
+          {/* GENERAL PURPOSE REGISTERS */}
+          <Text style={styles.subSection}>● GENERAL PURPOSE REGISTERS</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={styles.headerCell}>Name</Text>
+                <Text style={styles.headerCell}>Size</Text>
+                <Text style={styles.headerCell}>Role</Text>
               </View>
-            ))}
-          </View>
-
-          <Text style={[styles.subSection, { marginTop: 15 }]}>
-            ● GENERAL PURPOSE REGISTERS
-          </Text>
-
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <Text style={styles.headerCell}>Name</Text>
-              <Text style={styles.headerCell}>Size</Text>
-              <Text style={styles.headerCell}>Role</Text>
+              {generalRegisters.map((item, index) => (
+                <View key={item.id ?? index} style={styles.tableRow}>
+                  <Text style={styles.cellBlue}>{item.name}</Text>
+                  <Text style={styles.cell}>{item.size}</Text>
+                  <Text style={styles.cell}>{item.role}</Text>
+                </View>
+              ))}
             </View>
+          </ScrollView>
 
-            {generalRegisters.map((item) => (
-              <View key={item.id} style={styles.tableRow}>
-                <Text style={styles.cellBlue}>{item.name}</Text>
-                <Text style={styles.cell}>{item.size}</Text>
-                <Text style={styles.cell}>{item.role}</Text>
+          {/* FLAG REGISTERS */}
+          <Text style={[styles.subSection, { marginTop: 15 }]}>● FLAG REGISTERS</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={styles.headerCell}>Name</Text>
+                <Text style={styles.headerCell}>Size</Text>
               </View>
-            ))}
-          </View>
+              {flagRegisters.map((item, index) => (
+                <View key={item.id ?? index} style={styles.tableRow}>
+                  <Text style={styles.cellBlue}>{item.name}</Text>
+                  <Text style={styles.cell}>{item.size}</Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+
+
+
         </View>
 
         {/* INSTRUCTION SET */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Instruction Set</Text>
-
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <Text style={styles.headerCell}>Mnemonic</Text>
-              <Text style={styles.headerCell}>Opcode</Text>
-              <Text style={styles.headerCell}>Instruction</Text>
-            </View>
-
-            {instructions.map((item) => (
-              <View key={item.id} style={styles.tableRow}>
-                <Text style={styles.cellBlue}>{item.mnemonic}</Text>
-                <Text style={styles.cell}>{item.opcode}</Text>
-                <Text style={styles.cell}>{item.set}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={styles.headerCell}>Mnemonic</Text>
+                <Text style={styles.headerCell}>Opcode</Text>
+                <Text style={styles.headerCell}>Instruction</Text>
               </View>
-            ))}
-          </View>
-
-          <Text style={styles.totalText}>
-            Total Instructions: {instructions.length}
-          </Text>
+              {instructions.map((item, index) => (
+                <View key={item.id ?? index} style={styles.tableRow}>
+                  <Text style={styles.cellBlue}>{item.mnemonic}</Text>
+                  <Text style={styles.cell}>{item.opcode}</Text>
+                  <Text style={styles.cell}>{item.set}</Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+          <Text style={styles.totalText}>Total Instructions: {instructions.length}</Text>
         </View>
 
         {/* ACTION */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Action</Text>
-
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <Text style={styles.headerCell}>Mnemonic</Text>
-              <Text style={styles.headerCell}>Action</Text>
-            </View>
-
-            {actions.map((item) => (
-              <View key={item.id} style={styles.tableRow}>
-                <Text style={styles.cellBlue}>{item.mnemonic}</Text>
-                <Text style={styles.cell}>{item.action}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={styles.headerCell}>Mnemonic</Text>
+                <Text style={styles.headerCell}>Action</Text>
               </View>
-            ))}
-          </View>
+              {actions.map((item, index) => (
+                <View key={item.id ?? index} style={styles.tableRow}>
+                  <Text style={styles.cellBlue}>{item.mnemonic}</Text>
+                  <Text style={styles.cell}>{item.action}</Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
         </View>
 
         {/* ADDRESSING MODES */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Addressing Modes</Text>
-
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <Text style={styles.headerCell}>Name</Text>
-              <Text style={styles.headerCell}>Instruction</Text>
-            </View>
-
-            {addressingModes.map((item) => (
-              <View key={item.id} style={styles.tableRow}>
-                <Text style={styles.cellBlue}>{item.name}</Text>
-                <Text style={styles.cell}>{item.instruction}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={styles.headerCell}>Name</Text>
+                <Text style={styles.headerCell}>Code</Text>
+                <Text style={styles.headerCell}>Symbol</Text>
               </View>
-            ))}
-          </View>
+              {addressingModes.map((item, index) => (
+                <View key={item.id ?? index} style={styles.tableRow}>
+                  <Text style={styles.cellBlue}>{item.name}</Text>
+                  <Text style={styles.cell}>{item.code}</Text>
+                  <Text style={styles.cell}>{item.symbol}</Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
         </View>
 
       </ScrollView>
@@ -228,6 +237,7 @@ const Detailscreen = () => {
 
 export default Detailscreen;
 
+/* ================= STYLES ================= */
 const styles = StyleSheet.create({
   header: {
     height: 56,
@@ -255,7 +265,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 12,
-    gap: 6,
   },
   sectionTitle: {
     fontSize: 16,
@@ -289,33 +298,35 @@ const styles = StyleSheet.create({
     borderColor: "#CBD5E1",
     borderRadius: 8,
     overflow: "hidden",
+    minWidth: screenWidth - 32,
   },
   tableHeader: {
     flexDirection: "row",
     backgroundColor: "#E2E8F0",
-    paddingVertical: 8,
   },
   tableRow: {
     flexDirection: "row",
-    paddingVertical: 8,
     borderTopWidth: 1,
     borderColor: "#E2E8F0",
   },
   headerCell: {
-    flex: 2,
-    textAlign: "center",
+    width: 120,
+    padding: 10,
     fontWeight: "bold",
     fontSize: 13,
+    textAlign: "center",
   },
   cell: {
-    flex: 1.5,
-    textAlign: "center",
+    width: 120,
+    padding: 10,
     fontSize: 13,
+    textAlign: "center",
   },
   cellBlue: {
-    flex: 1,
-    textAlign: "center",
+    width: 120,
+    padding: 10,
     fontSize: 13,
+    textAlign: "center",
     color: "#1E3A8A",
     fontWeight: "600",
   },
@@ -324,5 +335,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#64748B",
     marginTop: 8,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  retryButton: {
+    marginTop: 15,
+    backgroundColor: "#1E3A8A",
+    padding: 10,
+    borderRadius: 5,
+  },
+  buttonText: {
+    color: "white",
+    fontWeight: "bold",
   },
 });

@@ -1,54 +1,79 @@
 import BASE_URL from "./apiConfig";
 
-// 1️⃣ Create Architecture
-export const createArchitecture = async (cpuData) => {
-  const response = await fetch(`${BASE_URL}/architecture/add`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(cpuData),
-  });
+// ================= CREATE FULL ARCHITECTURE =================
+// export const createFullArchitecture = async (fullData) => {
+//   try {
+//     const response = await fetch(`${BASE_URL}/create-full`, {
+//       method: "POST",
+//       headers: {
+//         "Content-Type": "application/json",
+//       },
+//       body: JSON.stringify(fullData),
+//     });
 
-  return response.json();
+//     const data = await response.json();
+
+//     if (!response.ok) {
+//       throw new Error(data.message || "Something went wrong");
+//     }
+
+//     return data;
+//   } catch (error) {
+//     throw error;
+//   }
+// };
+export const createFullArchitecture = async (fullData) => {
+  try {
+    const response = await fetch(`${BASE_URL}/create-full`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(fullData),
+    });
+
+    const text = await response.text(); // 👈 IMPORTANT DEBUG
+
+    console.log("RAW RESPONSE:", text); // 👈 SEE REAL ERROR
+
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (e) {
+      data = { message: text };
+    }
+
+    if (!response.ok) {
+      throw new Error(data.message || text || "Request failed");
+    }
+
+    return data;
+
+  } catch (error) {
+    console.log("API ERROR:", error);
+    throw error;
+  }
 };
 
-// 2️⃣ Add Registers
-export const addRegisters = async (architectureId, registers) => {
-  const response = await fetch(
-    `${BASE_URL}/architecture/${architectureId}/register/addList`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(registers),
+// ================= UPDATE ARCHITECTURE =================
+export const updateArchitecture = async (id, payload) => {
+  try {
+    const response = await fetch(`${BASE_URL}/update/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Update failed");
     }
-  );
 
-  return response.json();
-};
-
-// 3️⃣ Add Instructions
-export const addInstructions = async (architectureId, instructions) => {
-  const response = await fetch(
-    `${BASE_URL}/architecture/${architectureId}/instruction/addList`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(instructions),
-    }
-  );
-
-  return response.json();
-};
-
-// 4️⃣ Add Addressing Modes
-export const addAddressingModes = async (architectureId, modes) => {
-  const response = await fetch(
-    `${BASE_URL}/architecture/${architectureId}/addressingmode/addlist`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(modes),
-    }
-  );
-
-  return response.json();
+    return data;
+  } catch (error) {
+    throw error;
+  }
 };

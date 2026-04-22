@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -22,16 +23,35 @@ const CpuDesign = ({ navigation }) => {
   const [submittedData, setSubmittedData] = useState([]);
 
   // Load data from AsyncStorage when component mounts
-  useEffect(() => {
+  useFocusEffect(
+  useCallback(() => {
     const loadData = async () => {
       const data = await AsyncStorage.getItem("cpuData");
-      if (data) setSubmittedData(JSON.parse(data));
+
+      if (data) {
+        setSubmittedData(JSON.parse(data));
+      } else {
+        setSubmittedData([]); // VERY IMPORTANT
+      }
+
+      // Also clear form fields
+      setArchitectureName("");
+      setMemorySize("");
+      setBusSize("");
+      setStackSize("");
+      setRegisterCount("");
+      setInstructionCount("");
     };
+
     loadData();
-  }, []);
+  }, [])
+);
 
   // ADD BUTTON HANDLER
   const handleAdd = async () => {
+    // Prevent adding empty entries
+    if (!architectureName.trim()) return;
+
     const cpuData = {
       architectureName,
       memorySize,
@@ -47,21 +67,39 @@ const CpuDesign = ({ navigation }) => {
 
     // Save to AsyncStorage
     await AsyncStorage.setItem("cpuData", JSON.stringify(newData));
+
+    // Clear form fields after adding
+    setArchitectureName("");
+    setMemorySize("");
+    setBusSize("");
+    setStackSize("");
+    setRegisterCount("");
+    setInstructionCount("");
   };
 
   // NEXT BUTTON HANDLER
   const handleNext = () => {
-    const cpuData = {
-      architectureName,
-      memorySize,
-      busSize,
-      stackSize,
-      registerCount,
-      instructionCount,
-    };
+    let cpuDataToSend;
 
-    // Navigate to next screen with current form data
-    navigation.navigate("RegisterDesign", { cpuData });
+    if (architectureName.trim()) {
+      // If current form has data, use it
+      cpuDataToSend = {
+        architectureName,
+        memorySize,
+        busSize,
+        stackSize,
+        registerCount,
+        instructionCount,
+      };
+    } else if (submittedData.length > 0) {
+      // Use last added CPU design from submittedData
+      cpuDataToSend = submittedData[submittedData.length - 1];
+    } else {
+      alert("Please enter CPU design details first");
+      return;
+    }
+
+    navigation.navigate("RegisterDesign", { cpuData: cpuDataToSend });
   };
 
   return (
@@ -151,10 +189,10 @@ const CpuDesign = ({ navigation }) => {
               <Text style={styles.bold}>Stack Size:</Text> {item.stackSize}
             </Text>
             <Text style={styles.submittedText}>
-              <Text style={styles.bold}>Registers:</Text> {item.registerCount.toString()}
+              <Text style={styles.bold}>Registers:</Text> {item.registerCount?.toString()}
             </Text>
             <Text style={styles.submittedText}>
-              <Text style={styles.bold}>Instructions:</Text> {item.instructionCount.toString()}
+              <Text style={styles.bold}>Instructions:</Text> {item.instructionCount?.toString()}
             </Text>
           </View>
         ))}

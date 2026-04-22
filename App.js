@@ -1,23 +1,32 @@
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+
 import HomeTabs from "./screens/HomeTabs";
 import InstructionDesign from "./screens/InstructionDesign";
 import Compare from "./screens/Compare";
+import EditorStack from "./navigation/EditorStack"; // ✅ ADD THIS
+
+import { ArchitectureProvider } from "./context/ArchitectureContext";
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {/* Bottom tab navigator */}
-        <Stack.Screen name="HomeTabs" component={HomeTabs} />
+    <ArchitectureProvider>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          
+          {/* Main Tabs */}
+          <Stack.Screen name="HomeTabs" component={HomeTabs} />
 
-        {/* InstructionDesign screen is outside tabs */}
-        <Stack.Screen name="InstructionDesign" component={InstructionDesign} />
-        <Stack.Screen name="Compare" component={Compare} />
-      </Stack.Navigator>
-    </NavigationContainer>
+          {/* Global Screens */}
+          <Stack.Screen name="EditorStack" component={EditorStack} />
+          <Stack.Screen name="InstructionDesign" component={InstructionDesign} />
+          <Stack.Screen name="Compare" component={Compare} />
+
+        </Stack.Navigator>
+      </NavigationContainer>
+    </ArchitectureProvider>
   );
 }

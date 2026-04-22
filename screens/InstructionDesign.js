@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     View,
     Text,
@@ -6,22 +6,19 @@ import {
     TouchableOpacity,
     StyleSheet,
     ScrollView,
+    Alert,
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import {
-  createArchitecture,
-  addRegisters,
-  addInstructions,
-  addAddressingModes
-} from "../api/architectureApi";
+import { createFullArchitecture } from "../api/architectureApi";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-
+// Numeric operand types for backend: 0=Register, 1=Immediate, 2=Memory
 const OPERAND_TYPES = [
-    { label: "Register", value: "Register" },
-    { label: "Immediate", value: "Immediate" },
-    { label: "Memory", value: "Memory" },
+    { label: "Register", value: 0 },
+    { label: "Immediate", value: 1 },
+    { label: "Memory", value: 2 },
 ];
 
 const INTERRUPT_SYMBOLS = [
@@ -32,42 +29,59 @@ const INTERRUPT_SYMBOLS = [
 export default function InstructionDesign() {
     const navigation = useNavigation();
     const route = useRoute();
-
-    const { cpuData, flagRegisters, gpRegisters, addressingList } =
-        route.params || {};
+    const { cpuData, flagRegisters, gpRegisters, addressingList } = route.params || {};
 
     const registers = gpRegisters?.map(r => ({ label: r, value: r })) || [];
 
     const [opcode, setOpcode] = useState("");
-    const [mnemonic, setMnemonic] = useState("");
+    const [mnemonics, setMnemonics] = useState("");
     const [action, setAction] = useState("");
-
     const [isInterrupt, setIsInterrupt] = useState(false);
     const [interruptSymbol, setInterruptSymbol] = useState(null);
     const [inputRegister, setInputRegister] = useState(null);
     const [outputRegister, setOutputRegister] = useState(null);
 
-    const [operands, setOperands] = useState([
-        { id: 1, type: "Register", isDestination: true },
-    ]);
-
+    const [operandCounter, setOperandCounter] = useState(2); // ID counter for operands
+    const [operands, setOperands] = useState([{ id: 1, type: 0, isDestination: true }]);
     const [instructions, setInstructions] = useState([]);
+
+    const maxInstructions = parseInt(cpuData?.instructionCount) || 0;
+
+    // Reset outputRegister if it conflicts with inputRegister
+    useEffect(() => {
+        if (outputRegister === inputRegister) {
+            setOutputRegister(null);
+        }
+    }, [inputRegister]);
+
+    // Reset inputRegister if it conflicts with outputRegister
+    useEffect(() => {
+        if (inputRegister === outputRegister) {
+            setInputRegister(null);
+        }
+    }, [outputRegister]);
 
     // OPERAND FUNCTIONS
     const addOperand = () => {
-        setOperands(prev => [
-            ...prev,
-            { id: prev.length + 1, type: "Register", isDestination: false },
-        ]);
+        setOperands(prev => {
+            const newOp = { id: operandCounter, type: 0, isDestination: false };
+            setOperandCounter(prevCount => prevCount + 1);
+            return [...prev, newOp];
+        });
     };
 
     const updateOperandType = (id, type) => {
-        setOperands(prev =>
-            prev.map(op => (op.id === id ? { ...op, type } : op))
-        );
+        setOperands(prev => prev.map(op => (op.id === id ? { ...op, type } : op)));
     };
 
     const selectDestination = id => {
+        const selected = operands.find(op => op.id === id);
+
+        if (selected?.type === 1) {
+            Alert.alert("Invalid", "Immediate value cannot be destination");
+            return;
+        }
+
         setOperands(prev =>
             prev.map(op => ({ ...op, isDestination: op.id === id }))
         );
@@ -75,54 +89,144 @@ export default function InstructionDesign() {
 
     const deleteOperand = id => {
         if (operands.length === 1) return;
-        let updated = operands.filter(op => op.id !== id);
-        if (!updated.some(op => op.isDestination)) {
-            updated[0].isDestination = true;
-        }
+        const updated = operands.filter(op => op.id !== id);
+        if (!updated.some(op => op.isDestination)) updated[0].isDestination = true;
         setOperands(updated);
     };
 
     // ADD INSTRUCTION
+    // FIXED handleAddInstruction (no mutation of operandsData)
     const handleAddInstruction = () => {
+        if (instructions.length >= maxInstructions) {
+            Alert.alert(
+                "Limit Reached",
+                `You can only add ${maxInstructions} instructions as defined in CPU Design.`
+            );
+            return;
+        }
+
+        let operandsData = [];
+
+        if (!isInterrupt) {
+            operandsData = operands.map(op => ({
+                type: op.type,
+                isDestination: op.isDestination
+            }));
+        }
+
+        // 🔥 STEP 1: FORCE ONLY ONE DESTINATION (CRITICAL FIX)
+        let firstDestinationIndex = operandsData.findIndex(op => op.isDestination);
+
+        if (firstDestinationIndex === -1 && operandsData.length > 0) {
+            firstDestinationIndex = 0;
+        }
+
+        operandsData = operandsData.map((op, idx) => ({
+            ...op,
+            isDestination: idx === firstDestinationIndex
+        }));
+
+        // 🔥 STEP 2: SAFE INDEX (NEVER -1)
+        const destinationOperand = isInterrupt
+            ? null
+            : firstDestinationIndex + 1;
+
+        const instructionFormat =
+            isInterrupt ? 3 : parseInt(operandsData.map(op => op.type).join("")) || 0;
+
+        const numberOfOperands = isInterrupt ? 0 : operandsData.length;
+
         const instruction = {
+            Opcode: opcode,
+            Mnemonics: mnemonics,
+            InterruptSymbol: interruptSymbol,
+            InputRegister: inputRegister,
+            OutputRegister: outputRegister,
+            Action: action,
+            NumberOfOperands: numberOfOperands,
+            DestinationOperand: destinationOperand,
+            InstructionFormat: instructionFormat,
+
             opcode,
-            mnemonic,
+            mnemonics,
             isInterrupt,
             interruptSymbol,
-            operands: isInterrupt ? [] : operands,
             inputRegister,
             outputRegister,
             action,
+            numberOfOperands,
+            destinationOperand,
+            instructionFormat,
+            operands: operandsData,
         };
 
         setInstructions(prev => [...prev, instruction]);
 
-        // RESET FIELDS AFTER ADDING
+        // Reset form (UNCHANGED)
         setOpcode("");
-        setMnemonic("");
+        setMnemonics("");
         setAction("");
-        setOperands([{ id: 1, type: "Register", isDestination: true }]);
+        setOperands([{ id: 1, type: 0, isDestination: true }]);
+        setOperandCounter(2);
         setInterruptSymbol(null);
         setInputRegister(null);
         setOutputRegister(null);
         setIsInterrupt(false);
     };
+    // CREATE ARCHITECTURE
+    const handleCreateArchitecture = async () => {
+        try {
+            if (!cpuData?.architectureName) {
+                Alert.alert("Error", "CPU data is missing");
+                return;
+            }
 
-    const handleCreateArchitecture = () => {
-        const architecture = {
-            cpuData,
-            flagRegisters,
-            gpRegisters,
-            addressingList,
-            instructions,
-        };
-        console.log("Final Architecture:", architecture);
-        navigation.navigate("Testing", { architecture });
+            const normalizedAddressingModes = (addressingList || []).map(mode => ({
+                AddressingModeName: mode.mode,
+                AddressingModeCode: mode.code,
+                AddressingModeSymbol: mode.symbol ?? null,
+            }));
+
+            const fullData = {
+                architecture: {
+                    name: cpuData.architectureName,
+                    memorySize: parseInt(cpuData.memorySize) || 0,
+                    stackSize: parseInt(cpuData.stackSize) || 0,
+                    busSize: parseInt(cpuData.busSize) || 0,
+                    numberOfRegisters: parseInt(cpuData.registerCount) || 0,
+                    numberOfInstructions: parseInt(cpuData.instructionCount) || 0,
+                },
+                registers: [
+                    ...gpRegisters.map(r => ({ name: r, action: "" })),
+                    ...flagRegisters.map(f => ({ name: f.name, action: f.action ?? "" })),
+                ],
+                instructions,
+                addressingModes: normalizedAddressingModes,
+            };
+
+            const result = await createFullArchitecture(fullData);
+
+            if (result?.message) {
+                await AsyncStorage.removeItem("cpuData");
+                Alert.alert("Success", result.message);
+
+                navigation.reset({
+                    index: 0,
+                    routes: [{ name: "CpuDesign" }],
+                });
+            }
+        } catch (error) {
+            console.error(error);
+            Alert.alert("Error", error.message);
+        }
     };
+
+    // Compute filtered register options
+    const inputRegisterOptions = registers.filter(r => r.value !== outputRegister);
+    const outputRegisterOptions = registers.filter(r => r.value !== inputRegister);
 
     return (
         <View style={{ flex: 1 }}>
-            {/* HEADER */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>
                     <Ionicons name="arrow-back" size={24} color="#1E3A8A" />
@@ -133,21 +237,14 @@ export default function InstructionDesign() {
 
             <ScrollView contentContainerStyle={styles.container}>
                 <View style={styles.card}>
-                    {/* INTERRUPT TOGGLE */}
                     <TouchableOpacity
                         style={styles.checkboxRow}
                         onPress={() => setIsInterrupt(!isInterrupt)}
                     >
-                        <View
-                            style={[
-                                styles.checkbox,
-                                isInterrupt && styles.checkboxChecked,
-                            ]}
-                        />
-                        <Text style={{ marginLeft: 8 }}> Interrupt Instruction</Text>
+                        <View style={[styles.checkbox, isInterrupt && styles.checkboxChecked]} />
+                        <Text style={{ marginLeft: 8 }}>Interrupt Instruction</Text>
                     </TouchableOpacity>
 
-                    {/* OPCODE */}
                     <Text style={styles.label}>Opcode</Text>
                     <TextInput
                         style={styles.input}
@@ -157,17 +254,15 @@ export default function InstructionDesign() {
                         onChangeText={setOpcode}
                     />
 
-                    {/* MNEMONIC */}
                     <Text style={styles.label}>Mnemonic</Text>
                     <TextInput
                         style={styles.input}
                         placeholder="Enter Mnemonic(e.g., ADD, SUB)"
                         placeholderTextColor="black"
-                        value={mnemonic}
-                        onChangeText={setMnemonic}
+                        value={mnemonics}
+                        onChangeText={setMnemonics}
                     />
 
-                    {/* NORMAL INSTRUCTION */}
                     {!isInterrupt && (
                         <>
                             <View style={styles.headerRow}>
@@ -178,7 +273,6 @@ export default function InstructionDesign() {
                             {operands.map((op, index) => (
                                 <View key={op.id} style={styles.operandRow}>
                                     <Text>Operand {index + 1}</Text>
-
                                     <Dropdown
                                         style={styles.dropdown}
                                         data={OPERAND_TYPES}
@@ -187,21 +281,15 @@ export default function InstructionDesign() {
                                         value={op.type}
                                         onChange={item => updateOperandType(op.id, item.value)}
                                     />
-
                                     <TouchableOpacity
-                                        style={[
-                                            styles.radio,
-                                            op.isDestination && styles.radioSelected,
-                                        ]}
+                                        style={[styles.radio, op.isDestination && styles.radioSelected]}
                                         onPress={() => selectDestination(op.id)}
                                     />
-
                                     {operands.length > 1 && (
                                         <TouchableOpacity onPress={() => deleteOperand(op.id)}>
                                             <Text style={styles.delete}>🗑</Text>
                                         </TouchableOpacity>
                                     )}
-
                                     {index === operands.length - 1 && (
                                         <TouchableOpacity onPress={addOperand}>
                                             <Text style={styles.plus}>＋</Text>
@@ -212,66 +300,59 @@ export default function InstructionDesign() {
                         </>
                     )}
 
-                    {/* INTERRUPT INSTRUCTION - ALWAYS MOUNTED */}
-                    <View style={{ display: isInterrupt ? "flex" : "none" }}>
-                        <Text style={styles.label}>Interrupt</Text>
-                        <Dropdown
-                            style={styles.dropdownFull}
-                            data={INTERRUPT_SYMBOLS}
-                            labelField="label"
-                            valueField="value"
-                            value={interruptSymbol}
-                            onChange={item => setInterruptSymbol(item.value)}
-                        />
+                    {isInterrupt && (
+                        <>
+                            <Text style={styles.label}>Interrupt</Text>
+                            <Dropdown
+                                style={styles.dropdownFull}
+                                data={INTERRUPT_SYMBOLS}
+                                labelField="label"
+                                valueField="value"
+                                value={interruptSymbol}
+                                onChange={item => setInterruptSymbol(item.value)}
+                            />
 
-                        <Text style={styles.label}>Input Register</Text>
-                        <Dropdown
-                            style={styles.dropdownFull}
-                            placeholder="Select Input Register"
-                            data={registers}
-                            labelField="label"
-                            valueField="value"
-                            value={inputRegister}
-                            onChange={item => setInputRegister(item.value)}
-                        />
+                            <Text style={styles.label}>Input Register</Text>
+                            <Dropdown
+                                style={styles.dropdownFull}
+                                placeholder="Select Input Register"
+                                data={inputRegisterOptions}
+                                labelField="label"
+                                valueField="value"
+                                value={inputRegister}
+                                onChange={item => setInputRegister(item.value)}
+                            />
 
-                        <Text style={styles.label}>Output Register</Text>
-                        <Dropdown
-                            style={styles.dropdownFull}
-                            placeholder="Select Output Register"
-                            data={registers}
-                            labelField="label"
-                            valueField="value"
-                            value={outputRegister}
-                            onChange={item => setOutputRegister(item.value)}
-                        />
-                    </View>
+                            <Text style={styles.label}>Output Register</Text>
+                            <Dropdown
+                                style={styles.dropdownFull}
+                                placeholder="Select Output Register"
+                                data={outputRegisterOptions}
+                                labelField="label"
+                                valueField="value"
+                                value={outputRegister}
+                                onChange={item => setOutputRegister(item.value)}
+                            />
+                        </>
+                    )}
 
-                    {/* ACTION */}
                     <Text style={styles.label}>Action</Text>
                     <TextInput
                         style={[styles.input, { height: 90 }]}
                         multiline
-                        value={action}
                         placeholder="// Write Java Code Here for Logic of Instruction"
                         placeholderTextColor="black"
+                        value={action}
                         onChangeText={setAction}
                     />
 
-                    {/* ADD INSTRUCTION */}
-                    <TouchableOpacity
-                        style={styles.button}
-                        onPress={handleAddInstruction}
-                    >
+                    <TouchableOpacity style={styles.button} onPress={handleAddInstruction}>
                         <Text style={styles.buttonText}>ADD</Text>
                     </TouchableOpacity>
 
-                    {/* DISPLAY ADDED INSTRUCTIONS */}
                     {instructions.map((instr, index) => (
                         <View key={index} style={styles.instructionCard}>
-                            <Text style={styles.cardTitle}>
-                                {instr.mnemonic || "(No Mnemonic)"}
-                            </Text>
+                            <Text style={styles.cardTitle}>{instr.mnemonics || "(No Mnemonic)"}</Text>
                             <Text>Opcode: {instr.opcode}</Text>
                             {instr.isInterrupt ? (
                                 <>
@@ -282,20 +363,17 @@ export default function InstructionDesign() {
                             ) : (
                                 <Text>
                                     Operands:{" "}
-                                    {instr.operands
-                                        .map(op => `${op.type}${op.isDestination ? "(D)" : ""}`)
-                                        .join(", ")}
+                                    {instr.operands.map(op => `${op.type}${op.isDestination ? "(D)" : ""}`).join(", ")}
                                 </Text>
                             )}
+                            <Text>Number of Operands: {instr.numberOfOperands}</Text>
+                            <Text>Destination Operand: {instr.destinationOperand}</Text>
+                            <Text>Instruction Format: {instr.instructionFormat}</Text>
                             <Text>Action: {instr.action || "(No Action)"}</Text>
                         </View>
                     ))}
 
-                    {/* CREATE ARCHITECTURE */}
-                    <TouchableOpacity
-                        style={styles.createBtn}
-                        onPress={handleCreateArchitecture}
-                    >
+                    <TouchableOpacity style={styles.createBtn} onPress={handleCreateArchitecture}>
                         <Text style={styles.buttonText}>Create Architecture</Text>
                     </TouchableOpacity>
                 </View>
@@ -316,92 +394,134 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: "#ccc",
     },
-    headerTitle: {
+    headerTitle:
+    {
         color: "#1E3A8A",
         fontSize: 22,
         fontWeight: "bold",
-        textAlign: "center",
+        textAlign: "center"
     },
-    container: { padding: 16, backgroundColor: "#f5f7fb" },
-    card: { backgroundColor: "#fff", padding: 16, borderRadius: 12 },
-    label: { marginTop: 12, fontWeight: "bold" },
-    input: {
+    container:
+    {
+        padding: 16,
+        backgroundColor: "#f5f7fb"
+    },
+    card:
+    {
+        backgroundColor: "#fff",
+        padding: 16,
+        borderRadius: 12
+    },
+    label:
+    {
+        marginTop: 12,
+        fontWeight: "bold"
+    },
+    input:
+    {
         borderWidth: 1,
         borderColor: "#ccc",
         borderRadius: 6,
-        padding: 10,
+        padding: 10
     },
-    operandRow: {
+    operandRow:
+    {
         flexDirection: "row",
         alignItems: "center",
-        marginVertical: 6,
+        marginVertical: 6
     },
-    dropdown: {
+    dropdown:
+    {
         width: 130,
         height: 40,
         borderWidth: 1,
         borderColor: "#ccc",
-        marginHorizontal: 6,
+        marginHorizontal: 6
     },
-    dropdownFull: {
+    dropdownFull:
+    {
         height: 42,
         borderWidth: 1,
         borderColor: "#ccc",
-        marginVertical: 6,
+        marginVertical: 6
     },
-    radio: {
+    radio:
+    {
         width: 18,
         height: 18,
         borderWidth: 2,
         borderRadius: 9,
-        borderColor: "#1f3c88",
+        borderColor: "#1f3c88"
     },
-    radioSelected: { backgroundColor: "#1f3c88" },
-    plus: { fontSize: 22, marginLeft: 4 },
-    delete: { fontSize: 18, marginLeft: 4 },
-    button: {
+    radioSelected:
+    {
+        backgroundColor: "#1f3c88"
+    },
+    plus:
+    {
+        fontSize: 22,
+        marginLeft: 4
+    },
+    delete:
+    {
+        fontSize: 18,
+        marginLeft: 4
+    },
+    button:
+    {
         backgroundColor: "#1f3c88",
         padding: 12,
         borderRadius: 8,
-        marginTop: 16,
+        marginTop: 16
     },
-    buttonText: {
+    buttonText:
+    {
         color: "#fff",
-        textAlign: "center",
+        textAlign: "center"
     },
-    checkboxRow: {
+    checkboxRow:
+    {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 10,
+        marginBottom: 10
     },
-    checkbox: {
+    checkbox:
+    {
         width: 18,
         height: 18,
         borderWidth: 2,
-        borderColor: "#1f3c88",
+        borderColor: "#1f3c88"
     },
-    checkboxChecked: {
-        backgroundColor: "#1f3c88",
+    checkboxChecked:
+    {
+        backgroundColor: "#1f3c88"
     },
-    headerRow: {
+    headerRow:
+    {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
         marginBottom: 8,
         paddingHorizontal: 2,
-        paddingRight: 115,
+        paddingRight: 115
     },
-    createBtn: {
+    createBtn:
+    {
         backgroundColor: "#1f3c88",
         padding: 12,
         borderRadius: 8,
-        marginTop: 10,
+        marginTop: 10
     },
-    instructionCard: {
+    instructionCard:
+    {
         backgroundColor: "#e8eaf6",
         padding: 12,
         borderRadius: 8,
-        marginTop: 10,
+        marginTop: 10
     },
-    cardTitle: { fontWeight: "bold", marginBottom: 4 },
+    cardTitle:
+    {
+        fontWeight: "bold",
+        marginBottom: 4
+    },
 });

@@ -7,7 +7,8 @@ import CpuDesignStack from "../navigation/CpuDesignStack";
 import EditorStack from "../navigation/EditorStack";
 import AppHeader from "../components/AppHeader";
 import RegisterVisualization from "./RegisterVisualization";
-import DashboardStack from "../navigation/DashboardStack"
+import DashboardStack from "../navigation/DashboardStack";
+import MemoryVisualization from "./MemoryVisualization";
 
 const Tab = createBottomTabNavigator();
 
@@ -70,18 +71,19 @@ const HomeTabs = () => {
           ),
         }}
       />
-      
-
+      {/* 🚧 Memory VISUALIZATION SCREEN */}
       <Tab.Screen
         name="Memory viz"
+        component={MemoryVisualization}
         options={{
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="server-outline" size={size} color={color} />
           ),
         }}
-      >
-        {() => <DummyScreen title="Memory" />}
-      </Tab.Screen>
+      />
+      
+
+      
     </Tab.Navigator>
   );
 };

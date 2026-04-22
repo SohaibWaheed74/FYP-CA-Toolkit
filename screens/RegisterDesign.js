@@ -6,11 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Alert,
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation, useRoute } from "@react-navigation/native";
-
 
 const addressingModes = [
   { label: "Direct Addressing Mode", value: "Direct" },
@@ -25,53 +25,88 @@ const addressingCodes = [
   { label: "11", value: "11" },
 ];
 
+
 const RegisterDesign = () => {
   const navigation = useNavigation();
   const route = useRoute();
-
   const { cpuData } = route.params || {};
 
-  /* ================= Registers ================= */
+  // ================= Registers =================
   const [flagRegisterName, setFlagRegisterName] = useState("");
   const [flagRegisterAction, setFlagRegisterAction] = useState("");
   const [gpRegisterName, setGpRegisterName] = useState("");
-
   const [flagRegisters, setFlagRegisters] = useState([]);
   const [gpRegisters, setGpRegisters] = useState([]);
 
-  /* ================= Addressing ================= */
-  const [addrMode, setAddrMode] = useState(null);
-  const [addrCode, setAddrCode] = useState(null);
+  // ================= Addressing =================
+  const [addrMode, setAddrMode] = useState("");
+  const [addrCode, setAddrCode] = useState("");
   const [symbol, setSymbol] = useState("");
-
   const [addressingList, setAddressingList] = useState([]);
 
-  /* ================= Functions ================= */
-  const addFlagRegister = () => {
-    if (!flagRegisterName || !flagRegisterAction) return;
+  const maxRegisters = parseInt(cpuData?.registerCount) || 0;
 
-    const newFlag = { name: flagRegisterName, action: flagRegisterAction };
-    setFlagRegisters([...flagRegisters, newFlag]);
+  // ================= Functions =================
+  const addFlagRegister = () => {
+    if (!flagRegisterName.trim() || !flagRegisterAction.trim()) {
+      Alert.alert("Error", "Please enter flag register name and action.");
+      return;
+    }
+
+    const totalRegisters = gpRegisters.length + flagRegisters.length;
+
+    if (totalRegisters >= maxRegisters) {
+      Alert.alert(
+        "Limit Reached",
+        `You can only add ${maxRegisters} registers as defined in CPU Design.`
+      );
+      return;
+    }
+
+    setFlagRegisters(prev => [
+      ...prev,
+      { name: flagRegisterName.trim(), action: flagRegisterAction.trim() },
+    ]);
 
     setFlagRegisterName("");
     setFlagRegisterAction("");
   };
 
   const addGpRegister = () => {
-    if (!gpRegisterName) return;
+    if (!gpRegisterName.trim()) {
+      Alert.alert("Error", "Please enter GP register name.");
+      return;
+    }
 
-    setGpRegisters([...gpRegisters, gpRegisterName]);
+    if (gpRegisters.length >= maxRegisters) {
+      Alert.alert(
+        "Limit Reached",
+        `You can only add ${maxRegisters} registers as defined in CPU Design.`
+      );
+      return;
+    }
+
+    setGpRegisters(prev => [...prev, gpRegisterName.trim()]);
     setGpRegisterName("");
   };
 
   const addAddressingMode = () => {
-    if (!addrMode || !addrCode || !symbol) return;
+    if (!addrMode || !addrCode || !symbol.trim()) {
+      Alert.alert("Error", "Please select addressing mode, code and enter symbol.");
+      return;
+    }
 
-    const newAddr = { mode: addrMode, code: addrCode, symbol };
-    setAddressingList([...addressingList, newAddr]);
+    const newMode = {
+      mode: addrMode,
+      code: addrCode,
+      symbol: symbol.trim(),
+    };
 
-    setAddrMode(null);
-    setAddrCode(null);
+    setAddressingList(prev => [...prev, newMode]);
+
+    // Reset inputs
+    setAddrMode("");
+    setAddrCode("");
     setSymbol("");
   };
 
@@ -84,7 +119,7 @@ const RegisterDesign = () => {
     });
   };
 
-  /* ================= UI ================= */
+  // ================= UI =================
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.header}>
@@ -120,7 +155,6 @@ const RegisterDesign = () => {
           <Text style={styles.btnText}>ADD</Text>
         </TouchableOpacity>
 
-        {/* Display Flag Registers */}
         {flagRegisters.map((flag, index) => (
           <View key={index} style={styles.card}>
             <Text style={styles.submittedText}>
@@ -146,7 +180,6 @@ const RegisterDesign = () => {
           <Text style={styles.btnText}>ADD</Text>
         </TouchableOpacity>
 
-        {/* Display GP Registers */}
         {gpRegisters.map((gp, index) => (
           <View key={index} style={styles.card}>
             <Text style={styles.submittedText}>
@@ -165,8 +198,8 @@ const RegisterDesign = () => {
           labelField="label"
           valueField="value"
           placeholder="Select addressing mode"
-          value={addrMode}
-          onChange={(item) => setAddrMode(item.value)}
+          value={addrMode || null}
+          onChange={item => setAddrMode(item.value)}
         />
 
         <Text style={styles.label}>Addressing Mode Code</Text>
@@ -176,8 +209,8 @@ const RegisterDesign = () => {
           labelField="label"
           valueField="value"
           placeholder="Select Addressing Mode Code"
-          value={addrCode}
-          onChange={(item) => setAddrCode(item.value)}
+          value={addrCode || null}
+          onChange={item => setAddrCode(item.value)}
         />
 
         <Text style={styles.label}>Symbol</Text>
@@ -193,10 +226,8 @@ const RegisterDesign = () => {
           <Text style={styles.btnText}>ADD</Text>
         </TouchableOpacity>
 
-        {/* Display Addressing Modes */}
         {addressingList.map((addr, index) => (
           <View key={index} style={styles.card}>
-            
             <Text style={styles.submittedText}>
               <Text style={styles.bold}>Mode:</Text> {addr.mode}
             </Text>
@@ -206,11 +237,9 @@ const RegisterDesign = () => {
             <Text style={styles.submittedText}>
               <Text style={styles.bold}>Symbol:</Text> {addr.symbol}
             </Text>
-
           </View>
         ))}
 
-        {/* -------- Next -------- */}
         <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
           <Text style={styles.btnText}>Next</Text>
         </TouchableOpacity>
@@ -299,11 +328,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ccc",
   },
-  cardTitle: {
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-   submittedText: {
+  submittedText: {
     fontSize: 14,
     marginBottom: 2,
   },
