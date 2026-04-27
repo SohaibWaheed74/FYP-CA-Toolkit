@@ -40,15 +40,14 @@ const Detailscreen = () => {
 
       const data = await getArchitectureDetails(architectureId);
 
+      console.log("DETAIL API RESPONSE:", JSON.stringify(data, null, 2));
+
       setArchitecture(data.architecture || {});
       setGeneralRegisters(data.generalRegisters || []);
       setFlagRegisters(data.flagRegisters || []);
       setInstructions(data.instructions || []);
       setActions(data.actions || []);
-
-      // ✅ FIXED HERE
       setAddressingModes(data.addressingModes || []);
-
     } catch (err) {
       console.log("Details Fetch Error:", err);
       setError(err.message || "Failed to load architecture details");
@@ -56,6 +55,47 @@ const Detailscreen = () => {
       setLoading(false);
     }
   };
+
+  const getInterruptSymbol = item => {
+    return (
+      item?.interruptSymbol ||
+      item?.InterruptSymbol ||
+      item?.interrupt_symbol ||
+      item?.Interrupt ||
+      item?.interrupt ||
+      ""
+    );
+  };
+
+  const getInputRegister = item => {
+    return (
+      item?.inputRegister ||
+      item?.InputRegister ||
+      item?.input_register ||
+      item?.InputReg ||
+      item?.inputReg ||
+      ""
+    );
+  };
+
+  const getOutputRegister = item => {
+    return (
+      item?.outputRegister ||
+      item?.OutputRegister ||
+      item?.output_register ||
+      item?.OutputReg ||
+      item?.outputReg ||
+      ""
+    );
+  };
+
+  const interruptInstructions = instructions.filter(item => {
+    const interruptSymbol = getInterruptSymbol(item);
+    const inputRegister = getInputRegister(item);
+    const outputRegister = getOutputRegister(item);
+
+    return interruptSymbol || inputRegister || outputRegister;
+  });
 
   if (loading) {
     return (
@@ -104,22 +144,36 @@ const Detailscreen = () => {
           <View style={styles.specRow}>
             <View style={styles.specBox}>
               <Text style={styles.label}>Architecture Name</Text>
-              <Text style={styles.value}>{architecture?.name ?? "-"}</Text>
+              <Text style={styles.value}>
+                {architecture?.name ||
+                  architecture?.Name ||
+                  architecture?.architectureName ||
+                  architecture?.ArchitectureName ||
+                  "-"}
+              </Text>
             </View>
+
             <View style={styles.specBox}>
               <Text style={styles.label}>Memory Size</Text>
-              <Text style={styles.value}>{architecture?.memorySize ?? "-"}</Text>
+              <Text style={styles.value}>
+                {architecture?.memorySize || architecture?.MemorySize || "-"}
+              </Text>
             </View>
           </View>
 
           <View style={styles.specRow}>
             <View style={styles.specBox}>
               <Text style={styles.label}>Bus Size</Text>
-              <Text style={styles.value}>{architecture?.busSize ?? "-"}</Text>
+              <Text style={styles.value}>
+                {architecture?.busSize || architecture?.BusSize || "-"}
+              </Text>
             </View>
+
             <View style={styles.specBox}>
               <Text style={styles.label}>Stack Size</Text>
-              <Text style={styles.value}>{architecture?.stackSize ?? "-"}</Text>
+              <Text style={styles.value}>
+                {architecture?.stackSize || architecture?.StackSize || "-"}
+              </Text>
             </View>
           </View>
         </View>
@@ -137,35 +191,46 @@ const Detailscreen = () => {
                 <Text style={styles.headerCell}>Size</Text>
                 <Text style={styles.headerCell}>Role</Text>
               </View>
+
               {generalRegisters.map((item, index) => (
                 <View key={item.id ?? index} style={styles.tableRow}>
-                  <Text style={styles.cellBlue}>{item.name}</Text>
-                  <Text style={styles.cell}>{item.size}</Text>
-                  <Text style={styles.cell}>{item.role}</Text>
+                  <Text style={styles.cellBlue}>
+                    {item.name ?? item.Name ?? "-"}
+                  </Text>
+                  <Text style={styles.cell}>
+                    {item.size ?? item.Size ?? "-"}
+                  </Text>
+                  <Text style={styles.cell}>
+                    {item.role ?? item.Role ?? "-"}
+                  </Text>
                 </View>
               ))}
             </View>
           </ScrollView>
 
           {/* FLAG REGISTERS */}
-          <Text style={[styles.subSection, { marginTop: 15 }]}>● FLAG REGISTERS</Text>
+          <Text style={[styles.subSection, { marginTop: 15 }]}>
+            ● FLAG REGISTERS
+          </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.table}>
               <View style={styles.tableHeader}>
                 <Text style={styles.headerCell}>Name</Text>
                 <Text style={styles.headerCell}>Size</Text>
               </View>
+
               {flagRegisters.map((item, index) => (
                 <View key={item.id ?? index} style={styles.tableRow}>
-                  <Text style={styles.cellBlue}>{item.name}</Text>
-                  <Text style={styles.cell}>{item.size}</Text>
+                  <Text style={styles.cellBlue}>
+                    {item.name ?? item.Name ?? "-"}
+                  </Text>
+                  <Text style={styles.cell}>
+                    {item.size ?? item.Size ?? "-"}
+                  </Text>
                 </View>
               ))}
             </View>
           </ScrollView>
-
-
-
         </View>
 
         {/* INSTRUCTION SET */}
@@ -178,17 +243,70 @@ const Detailscreen = () => {
                 <Text style={styles.headerCell}>Opcode</Text>
                 <Text style={styles.headerCell}>Instruction</Text>
               </View>
+
               {instructions.map((item, index) => (
                 <View key={item.id ?? index} style={styles.tableRow}>
-                  <Text style={styles.cellBlue}>{item.mnemonic}</Text>
-                  <Text style={styles.cell}>{item.opcode}</Text>
-                  <Text style={styles.cell}>{item.set}</Text>
+                  <Text style={styles.cellBlue}>
+                    {item.mnemonic ?? item.Mnemonics ?? item.mnemonics ?? "-"}
+                  </Text>
+                  <Text style={styles.cell}>
+                    {item.opcode ?? item.Opcode ?? "-"}
+                  </Text>
+                  <Text style={styles.cell}>
+                    {item.set ??
+                      item.Set ??
+                      item.instruction ??
+                      item.Instruction ??
+                      "-"}
+                  </Text>
                 </View>
               ))}
             </View>
           </ScrollView>
-          <Text style={styles.totalText}>Total Instructions: {instructions.length}</Text>
+
+          <Text style={styles.totalText}>
+            Total Instructions: {instructions.length}
+          </Text>
         </View>
+
+        {/* INTERRUPT DETAILS - only show if interrupt data exists */}
+        {interruptInstructions.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Interrupt Details</Text>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.interruptTable}>
+                <View style={styles.tableHeader}>
+                  <Text style={styles.headerCell}>Mnemonic</Text>
+                  <Text style={styles.headerCell}>Opcode</Text>
+                  <Text style={styles.headerCell}>Interrupt</Text>
+                  <Text style={styles.headerCell}>Input Reg</Text>
+                  <Text style={styles.headerCell}>Output Reg</Text>
+                </View>
+
+                {interruptInstructions.map((item, index) => (
+                  <View key={item.id ?? index} style={styles.tableRow}>
+                    <Text style={styles.cellBlue}>
+                      {item.mnemonic ?? item.Mnemonics ?? item.mnemonics ?? "-"}
+                    </Text>
+                    <Text style={styles.cell}>
+                      {item.opcode ?? item.Opcode ?? "-"}
+                    </Text>
+                    <Text style={styles.cell}>
+                      {getInterruptSymbol(item) || "-"}
+                    </Text>
+                    <Text style={styles.cell}>
+                      {getInputRegister(item) || "-"}
+                    </Text>
+                    <Text style={styles.cell}>
+                      {getOutputRegister(item) || "-"}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        )}
 
         {/* ACTION */}
         <View style={styles.card}>
@@ -197,12 +315,17 @@ const Detailscreen = () => {
             <View style={styles.table}>
               <View style={styles.tableHeader}>
                 <Text style={styles.headerCell}>Mnemonic</Text>
-                <Text style={styles.headerCell}>Action</Text>
+                <Text style={styles.wideHeaderCell}>Action</Text>
               </View>
+
               {actions.map((item, index) => (
                 <View key={item.id ?? index} style={styles.tableRow}>
-                  <Text style={styles.cellBlue}>{item.mnemonic}</Text>
-                  <Text style={styles.cell}>{item.action}</Text>
+                  <Text style={styles.cellBlue}>
+                    {item.mnemonic ?? item.Mnemonic ?? item.Mnemonics ?? "-"}
+                  </Text>
+                  <Text style={styles.wideCell}>
+                    {item.action ?? item.Action ?? "-"}
+                  </Text>
                 </View>
               ))}
             </View>
@@ -219,17 +342,35 @@ const Detailscreen = () => {
                 <Text style={styles.headerCell}>Code</Text>
                 <Text style={styles.headerCell}>Symbol</Text>
               </View>
+
               {addressingModes.map((item, index) => (
                 <View key={item.id ?? index} style={styles.tableRow}>
-                  <Text style={styles.cellBlue}>{item.name}</Text>
-                  <Text style={styles.cell}>{item.code}</Text>
-                  <Text style={styles.cell}>{item.symbol}</Text>
+                  <Text style={styles.cellBlue}>
+                    {item.name ??
+                      item.Name ??
+                      item.addressingModeName ??
+                      item.AddressingModeName ??
+                      "-"}
+                  </Text>
+                  <Text style={styles.cell}>
+                    {item.code ??
+                      item.Code ??
+                      item.addressingModeCode ??
+                      item.AddressingModeCode ??
+                      "-"}
+                  </Text>
+                  <Text style={styles.cell}>
+                    {item.symbol ??
+                      item.Symbol ??
+                      item.addressingModeSymbol ??
+                      item.AddressingModeSymbol ??
+                      "-"}
+                  </Text>
                 </View>
               ))}
             </View>
           </ScrollView>
         </View>
-
       </ScrollView>
     </View>
   );
@@ -247,11 +388,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
   },
+
   headerTitle: {
     color: "#1E3A8A",
     fontSize: 16,
     fontWeight: "900",
   },
+
   card: {
     backgroundColor: "white",
     marginHorizontal: 16,
@@ -261,38 +404,46 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
+
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 12,
   },
+
   sectionTitle: {
     fontSize: 16,
     fontWeight: "bold",
     color: "#1E3A8A",
   },
+
   specRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 12,
   },
+
   specBox: {
     width: "48%",
   },
+
   label: {
     fontSize: 12,
     color: "#64748B",
   },
+
   value: {
     fontSize: 14,
     fontWeight: "600",
     marginTop: 2,
   },
+
   subSection: {
     fontSize: 12,
     fontWeight: "bold",
     marginBottom: 8,
   },
+
   table: {
     borderWidth: 1,
     borderColor: "#CBD5E1",
@@ -300,15 +451,26 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     minWidth: screenWidth - 32,
   },
+
+  interruptTable: {
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 8,
+    overflow: "hidden",
+    minWidth: 600,
+  },
+
   tableHeader: {
     flexDirection: "row",
     backgroundColor: "#E2E8F0",
   },
+
   tableRow: {
     flexDirection: "row",
     borderTopWidth: 1,
     borderColor: "#E2E8F0",
   },
+
   headerCell: {
     width: 120,
     padding: 10,
@@ -316,12 +478,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: "center",
   },
+
   cell: {
     width: 120,
     padding: 10,
     fontSize: 13,
     textAlign: "center",
   },
+
   cellBlue: {
     width: 120,
     padding: 10,
@@ -330,23 +494,42 @@ const styles = StyleSheet.create({
     color: "#1E3A8A",
     fontWeight: "600",
   },
+
+  wideHeaderCell: {
+    width: 240,
+    padding: 10,
+    fontWeight: "bold",
+    fontSize: 13,
+    textAlign: "center",
+  },
+
+  wideCell: {
+    width: 240,
+    padding: 10,
+    fontSize: 13,
+    textAlign: "center",
+  },
+
   totalText: {
     textAlign: "right",
     fontSize: 12,
     color: "#64748B",
     marginTop: 8,
   },
+
   centered: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
+
   retryButton: {
     marginTop: 15,
     backgroundColor: "#1E3A8A",
     padding: 10,
     borderRadius: 5,
   },
+
   buttonText: {
     color: "white",
     fontWeight: "bold",

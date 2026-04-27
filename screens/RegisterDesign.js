@@ -7,6 +7,8 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 import Ionicons from "react-native-vector-icons/Ionicons";
@@ -24,7 +26,6 @@ const addressingCodes = [
   { label: "10", value: "10" },
   { label: "11", value: "11" },
 ];
-
 
 const RegisterDesign = () => {
   const navigation = useNavigation();
@@ -45,6 +46,50 @@ const RegisterDesign = () => {
   const [addressingList, setAddressingList] = useState([]);
 
   const maxRegisters = parseInt(cpuData?.registerCount) || 0;
+  const totalRegisters = flagRegisters.length + gpRegisters.length;
+  const remainingRegisters = maxRegisters - totalRegisters;
+
+  // ================= Common Validations =================
+  const isRegisterLimitReached = () => {
+    const currentTotal = flagRegisters.length + gpRegisters.length;
+
+    if (maxRegisters <= 0) {
+      Alert.alert(
+        "Error",
+        "No of Registers is missing or invalid from CPU Design."
+      );
+      return true;
+    }
+
+    if (currentTotal >= maxRegisters) {
+      Alert.alert(
+        "Limit Reached",
+        `You can only add ${maxRegisters} registers in total as defined in CPU Design.`
+      );
+      return true;
+    }
+
+    return false;
+  };
+
+  const isDuplicateRegister = name => {
+    const newName = name.trim().toLowerCase();
+
+    const existsInGP = gpRegisters.some(
+      gp => gp.trim().toLowerCase() === newName
+    );
+
+    const existsInFlag = flagRegisters.some(
+      flag => flag.name.trim().toLowerCase() === newName
+    );
+
+    if (existsInGP || existsInFlag) {
+      Alert.alert("Duplicate Register", "This register name already exists.");
+      return true;
+    }
+
+    return false;
+  };
 
   // ================= Functions =================
   const addFlagRegister = () => {
@@ -53,19 +98,20 @@ const RegisterDesign = () => {
       return;
     }
 
-    const totalRegisters = gpRegisters.length + flagRegisters.length;
+    if (isRegisterLimitReached()) {
+      return;
+    }
 
-    if (totalRegisters >= maxRegisters) {
-      Alert.alert(
-        "Limit Reached",
-        `You can only add ${maxRegisters} registers as defined in CPU Design.`
-      );
+    if (isDuplicateRegister(flagRegisterName)) {
       return;
     }
 
     setFlagRegisters(prev => [
       ...prev,
-      { name: flagRegisterName.trim(), action: flagRegisterAction.trim() },
+      {
+        name: flagRegisterName.trim(),
+        action: flagRegisterAction.trim(),
+      },
     ]);
 
     setFlagRegisterName("");
@@ -78,11 +124,11 @@ const RegisterDesign = () => {
       return;
     }
 
-    if (gpRegisters.length >= maxRegisters) {
-      Alert.alert(
-        "Limit Reached",
-        `You can only add ${maxRegisters} registers as defined in CPU Design.`
-      );
+    if (isRegisterLimitReached()) {
+      return;
+    }
+
+    if (isDuplicateRegister(gpRegisterName)) {
       return;
     }
 
@@ -92,7 +138,10 @@ const RegisterDesign = () => {
 
   const addAddressingMode = () => {
     if (!addrMode || !addrCode || !symbol.trim()) {
-      Alert.alert("Error", "Please select addressing mode, code and enter symbol.");
+      Alert.alert(
+        "Error",
+        "Please select addressing mode, code and enter symbol."
+      );
       return;
     }
 
@@ -104,7 +153,6 @@ const RegisterDesign = () => {
 
     setAddressingList(prev => [...prev, newMode]);
 
-    // Reset inputs
     setAddrMode("");
     setAddrCode("");
     setSymbol("");
@@ -121,16 +169,42 @@ const RegisterDesign = () => {
 
   // ================= UI =================
   return (
-    <View style={{ flex: 1 }}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+    >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#1E3A8A" />
         </TouchableOpacity>
+
         <Text style={styles.headerTitle}>Register Design</Text>
+
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Register Count Info */}
+        {/* 
+        <View style={styles.infoCard}>
+          <Text style={styles.infoText}>
+            Total Registers Allowed: {maxRegisters}
+          </Text>
+          <Text style={styles.infoText}>
+            Added Registers: {totalRegisters}
+          </Text>
+          <Text style={styles.infoText}>
+            Remaining Registers: {remainingRegisters < 0 ? 0 : remainingRegisters}
+          </Text>
+        </View> 
+        */}
+
         {/* -------- Flag Register -------- */}
         <Text style={styles.label}>Flag Register Name</Text>
         <TextInput
@@ -139,6 +213,7 @@ const RegisterDesign = () => {
           placeholderTextColor="black"
           value={flagRegisterName}
           onChangeText={setFlagRegisterName}
+          returnKeyType="next"
         />
 
         <Text style={styles.label}>Flag Register Action</Text>
@@ -149,16 +224,17 @@ const RegisterDesign = () => {
           value={flagRegisterAction}
           onChangeText={setFlagRegisterAction}
           multiline
+          textAlignVertical="top"
         />
 
         <TouchableOpacity style={styles.addBtn} onPress={addFlagRegister}>
-          <Text style={styles.btnText}>ADD</Text>
+          <Text style={styles.btnText}>ADD FLAG REGISTER</Text>
         </TouchableOpacity>
 
         {flagRegisters.map((flag, index) => (
-          <View key={index} style={styles.card}>
+          <View key={`flag-${index}`} style={styles.card}>
             <Text style={styles.submittedText}>
-              <Text style={styles.bold}>Name:</Text> {flag.name}
+              <Text style={styles.bold}>Flag Register:</Text> {flag.name}
             </Text>
             <Text style={styles.submittedText}>
               <Text style={styles.bold}>Action:</Text> {flag.action}
@@ -174,16 +250,17 @@ const RegisterDesign = () => {
           placeholderTextColor="black"
           value={gpRegisterName}
           onChangeText={setGpRegisterName}
+          returnKeyType="done"
         />
 
         <TouchableOpacity style={styles.addBtn} onPress={addGpRegister}>
-          <Text style={styles.btnText}>ADD</Text>
+          <Text style={styles.btnText}>ADD GP REGISTER</Text>
         </TouchableOpacity>
 
         {gpRegisters.map((gp, index) => (
-          <View key={index} style={styles.card}>
+          <View key={`gp-${index}`} style={styles.card}>
             <Text style={styles.submittedText}>
-              <Text style={styles.bold}>GP:</Text> {gp}
+              <Text style={styles.bold}>GP Register:</Text> {gp}
             </Text>
           </View>
         ))}
@@ -220,14 +297,15 @@ const RegisterDesign = () => {
           placeholderTextColor="black"
           value={symbol}
           onChangeText={setSymbol}
+          returnKeyType="done"
         />
 
         <TouchableOpacity style={styles.addBtn} onPress={addAddressingMode}>
-          <Text style={styles.btnText}>ADD</Text>
+          <Text style={styles.btnText}>ADD ADDRESSING MODE</Text>
         </TouchableOpacity>
 
         {addressingList.map((addr, index) => (
-          <View key={index} style={styles.card}>
+          <View key={`addr-${index}`} style={styles.card}>
             <Text style={styles.submittedText}>
               <Text style={styles.bold}>Mode:</Text> {addr.mode}
             </Text>
@@ -244,13 +322,18 @@ const RegisterDesign = () => {
           <Text style={styles.btnText}>Next</Text>
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
 export default RegisterDesign;
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "#f5f6fa",
+  },
+
   header: {
     height: 56,
     backgroundColor: "white",
@@ -261,26 +344,52 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#ccc",
   },
+
   headerTitle: {
     color: "#1E3A8A",
     fontSize: 22,
     fontWeight: "bold",
     textAlign: "center",
   },
+
+  scroll: {
+    flex: 1,
+  },
+
   container: {
     padding: 20,
     backgroundColor: "#f5f6fa",
     paddingTop: 10,
+    paddingBottom: 140,
   },
+
+  infoCard: {
+    backgroundColor: "#eef1fc",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#cfd6e4",
+  },
+
+  infoText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1E3A8A",
+    marginBottom: 3,
+  },
+
   sectionTitle: {
     fontSize: 16,
     fontWeight: "bold",
     marginVertical: 10,
   },
+
   label: {
     fontWeight: "600",
     marginBottom: 5,
   },
+
   input: {
     backgroundColor: "#fff",
     borderWidth: 1,
@@ -288,11 +397,14 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     padding: 10,
     marginBottom: 10,
+    color: "#000",
   },
+
   textArea: {
     height: 90,
     textAlignVertical: "top",
   },
+
   dropdown: {
     height: 50,
     borderColor: "#ccc",
@@ -302,6 +414,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     marginBottom: 10,
   },
+
   addBtn: {
     backgroundColor: "#1f3c88",
     padding: 12,
@@ -309,6 +422,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 15,
   },
+
   nextBtn: {
     backgroundColor: "#1f3c88",
     padding: 14,
@@ -316,10 +430,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 30,
   },
+
   btnText: {
     color: "#fff",
     fontWeight: "bold",
   },
+
   card: {
     backgroundColor: "#fff",
     padding: 12,
@@ -328,10 +444,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ccc",
   },
+
   submittedText: {
     fontSize: 14,
     marginBottom: 2,
   },
+
   bold: {
     fontWeight: "bold",
   },

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { getArchitectureDetails } from "../api/detailApi";
 
 /* =======================
    REUSABLE REGISTER BOX
@@ -30,7 +31,7 @@ const RegisterVisualization = () => {
   const navigation = useNavigation();
   const route = useRoute();
 
-  // ✅ SAFE FALLBACK (THIS FIXES {})
+  // ✅ SAFE FALLBACK
   const executionResult = route.params?.executionResult || {
     registers: [],
     flags: [],
@@ -39,22 +40,130 @@ const RegisterVisualization = () => {
 
   const architecture = route.params?.architecture;
 
-  const registersArray = executionResult.registers || [];
-  const flagsArray = executionResult.flags || [];
-  const errors = executionResult.errors || [];
+  const architectureId =
+    route.params?.architectureId ||
+    architecture?.ArchitectureID ||
+    architecture?.architectureID ||
+    architecture?.id ||
+    architecture?.architectureId;
 
-  const registerNames = ["R1", "R2", "R3", "R4", "R5", "PC", "SP", "IR"];
-  const flagNames = ["Carry", "Overflow", "Sign", "Zero"];
+  const [generalRegisters, setGeneralRegisters] = useState([]);
+  const [flagRegisters, setFlagRegisters] = useState([]);
 
-  const mappedRegisters = {};
-  registerNames.forEach((name, index) => {
-    mappedRegisters[name] = registersArray[index] ?? 0;
-  });
+  const registersArray =
+    executionResult.registers ||
+    executionResult.Registers ||
+    [];
 
-  const mappedFlags = {};
-  flagNames.forEach((name, index) => {
-    mappedFlags[name] = flagsArray[index] ?? 0;
-  });
+  const flagsArray =
+    executionResult.flags ||
+    executionResult.Flags ||
+    [];
+
+  const errors =
+    executionResult.errors ||
+    executionResult.Errors ||
+    [];
+
+  useEffect(() => {
+    fetchArchitectureDetailsForNames();
+  }, [architectureId]);
+
+  const fetchArchitectureDetailsForNames = async () => {
+    try {
+      if (!architectureId) return;
+
+      const data = await getArchitectureDetails(architectureId);
+
+      setGeneralRegisters(data.generalRegisters || []);
+      setFlagRegisters(data.flagRegisters || []);
+
+      console.log("REGISTER VISUALIZATION DETAILS:", {
+        generalRegisters: data.generalRegisters || [],
+        flagRegisters: data.flagRegisters || [],
+      });
+    } catch (err) {
+      console.log("Register Visualization Details Fetch Error:", err);
+    }
+  };
+
+  // =======================
+  // DYNAMIC REGISTER / FLAG NAMES FROM DATABASE
+  // =======================
+  const routeRegisters = route.params?.registers || [];
+  const routeFlags = route.params?.flags || [];
+
+  const dbRegisters =
+    Array.isArray(generalRegisters) && generalRegisters.length > 0
+      ? generalRegisters
+      : Array.isArray(routeRegisters) && routeRegisters.length > 0
+        ? routeRegisters
+        : architecture?.Registers ||
+          architecture?.registers ||
+          architecture?.ArchitectureRegisters ||
+          architecture?.architectureRegisters ||
+          [];
+
+  const dbFlags =
+    Array.isArray(flagRegisters) && flagRegisters.length > 0
+      ? flagRegisters
+      : Array.isArray(routeFlags) && routeFlags.length > 0
+        ? routeFlags
+        : architecture?.flagRegisters ||
+          architecture?.FlagRegisters ||
+          architecture?.Flags ||
+          architecture?.flags ||
+          architecture?.ArchitectureFlags ||
+          architecture?.architectureFlags ||
+          architecture?.ArchitectureFlagRegisters ||
+          architecture?.architectureFlagRegisters ||
+          [];
+
+  const dynamicRegisters = Array.isArray(dbRegisters) && dbRegisters.length > 0
+    ? dbRegisters.map((reg, index) => ({
+        label:
+          reg?.name ||
+          reg?.Name ||
+          reg?.RegisterName ||
+          reg?.registerName ||
+          `R${index + 1}`,
+        value: registersArray[index] ?? 0,
+      }))
+    : registersArray.map((value, index) => ({
+        label: `R${index + 1}`,
+        value: value ?? 0,
+      }));
+
+  const dynamicFlags = Array.isArray(dbFlags) && dbFlags.length > 0
+    ? dbFlags.map((flag, index) => ({
+        label:
+          flag?.name ||
+          flag?.Name ||
+          flag?.FlagName ||
+          flag?.flagName ||
+          flag?.FlagRegisterName ||
+          flag?.flagRegisterName ||
+          flag?.RegisterName ||
+          flag?.registerName ||
+          `Flag ${index + 1}`,
+        value:
+          flagsArray[index] === true
+            ? 1
+            : flagsArray[index] === false
+              ? 0
+              : flagsArray[index] ?? 0,
+      }))
+    : [];
+
+  const chunkArray = (array, size) => {
+    const chunks = [];
+
+    for (let i = 0; i < array.length; i += size) {
+      chunks.push(array.slice(i, i + size));
+    }
+
+    return chunks;
+  };
 
   return (
     <ScrollView style={styles.container}>
@@ -72,7 +181,7 @@ const RegisterVisualization = () => {
       {/* ARCHITECTURE */}
       {architecture && (
         <Text style={{ marginBottom: 8, fontWeight: "600", color: "#1F3C88" }}>
-          Using Architecture: {architecture?.Name}
+          Using Architecture: {architecture?.Name || architecture?.name}
         </Text>
       )}
 
@@ -80,31 +189,58 @@ const RegisterVisualization = () => {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Registers</Text>
 
-        <View style={styles.row}>
-          <RegisterBox label="R1" value={mappedRegisters.R1} />
-          <RegisterBox label="R2" value={mappedRegisters.R2} />
-          <RegisterBox label="R3" value={mappedRegisters.R3} />
-          <RegisterBox label="R4" value={mappedRegisters.R4} />
-        </View>
+        {dynamicRegisters.length > 0 ? (
+          chunkArray(dynamicRegisters, 4).map((rowItems, rowIndex) => (
+            <View style={styles.row} key={`register-row-${rowIndex}`}>
+              {rowItems.map((reg, index) => (
+                <RegisterBox
+                  key={`register-${rowIndex}-${index}`}
+                  label={reg.label}
+                  value={reg.value}
+                />
+              ))}
 
-        <View style={styles.row}>
-          <RegisterBox label="R5" value={mappedRegisters.R5} />
-          <RegisterBox label="PC" value={mappedRegisters.PC} />
-          <RegisterBox label="SP" value={mappedRegisters.SP} />
-          <RegisterBox label="IR" value={mappedRegisters.IR} />
-        </View>
+              {rowItems.length < 4 &&
+                Array.from({ length: 4 - rowItems.length }).map((_, emptyIndex) => (
+                  <View
+                    key={`empty-register-${rowIndex}-${emptyIndex}`}
+                    style={styles.boxContainer}
+                  />
+                ))}
+            </View>
+          ))
+        ) : (
+          <Text style={styles.outputText}>No registers found</Text>
+        )}
       </View>
 
       {/* FLAGS */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Flags</Text>
 
-        <View style={styles.row}>
-          <RegisterBox label="Carry" value={mappedFlags.Carry} />
-          <RegisterBox label="Overflow" value={mappedFlags.Overflow} />
-          <RegisterBox label="Sign" value={mappedFlags.Sign} />
-          <RegisterBox label="Zero" value={mappedFlags.Zero} />
-        </View>
+        {dynamicFlags.length > 0 ? (
+          chunkArray(dynamicFlags, 4).map((rowItems, rowIndex) => (
+            <View style={styles.row} key={`flag-row-${rowIndex}`}>
+              {rowItems.map((flag, index) => (
+                <RegisterBox
+                  key={`flag-${rowIndex}-${index}`}
+                  label={flag.label}
+                  value={flag.value}
+                />
+              ))}
+
+              {rowItems.length < 4 &&
+                Array.from({ length: 4 - rowItems.length }).map((_, emptyIndex) => (
+                  <View
+                    key={`empty-flag-${rowIndex}-${emptyIndex}`}
+                    style={styles.boxContainer}
+                  />
+                ))}
+            </View>
+          ))
+        ) : (
+          <Text style={styles.outputText}>No flags found</Text>
+        )}
       </View>
 
       {/* OUTPUT / ERRORS */}

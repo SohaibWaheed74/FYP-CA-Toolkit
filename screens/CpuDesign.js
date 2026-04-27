@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -22,34 +24,32 @@ const CpuDesign = ({ navigation }) => {
   // STORE SUBMITTED DATA
   const [submittedData, setSubmittedData] = useState([]);
 
-  // Load data from AsyncStorage when component mounts
+  // Load data from AsyncStorage when component mounts/focus
   useFocusEffect(
-  useCallback(() => {
-    const loadData = async () => {
-      const data = await AsyncStorage.getItem("cpuData");
+    useCallback(() => {
+      const loadData = async () => {
+        const data = await AsyncStorage.getItem("cpuData");
 
-      if (data) {
-        setSubmittedData(JSON.parse(data));
-      } else {
-        setSubmittedData([]); // VERY IMPORTANT
-      }
+        if (data) {
+          setSubmittedData(JSON.parse(data));
+        } else {
+          setSubmittedData([]);
+        }
 
-      // Also clear form fields
-      setArchitectureName("");
-      setMemorySize("");
-      setBusSize("");
-      setStackSize("");
-      setRegisterCount("");
-      setInstructionCount("");
-    };
+        setArchitectureName("");
+        setMemorySize("");
+        setBusSize("");
+        setStackSize("");
+        setRegisterCount("");
+        setInstructionCount("");
+      };
 
-    loadData();
-  }, [])
-);
+      loadData();
+    }, [])
+  );
 
   // ADD BUTTON HANDLER
   const handleAdd = async () => {
-    // Prevent adding empty entries
     if (!architectureName.trim()) return;
 
     const cpuData = {
@@ -61,14 +61,11 @@ const CpuDesign = ({ navigation }) => {
       instructionCount,
     };
 
-    // Add to submittedData array
     const newData = [...submittedData, cpuData];
     setSubmittedData(newData);
 
-    // Save to AsyncStorage
     await AsyncStorage.setItem("cpuData", JSON.stringify(newData));
 
-    // Clear form fields after adding
     setArchitectureName("");
     setMemorySize("");
     setBusSize("");
@@ -82,7 +79,6 @@ const CpuDesign = ({ navigation }) => {
     let cpuDataToSend;
 
     if (architectureName.trim()) {
-      // If current form has data, use it
       cpuDataToSend = {
         architectureName,
         memorySize,
@@ -92,7 +88,6 @@ const CpuDesign = ({ navigation }) => {
         instructionCount,
       };
     } else if (submittedData.length > 0) {
-      // Use last added CPU design from submittedData
       cpuDataToSend = submittedData[submittedData.length - 1];
     } else {
       alert("Please enter CPU design details first");
@@ -103,118 +98,150 @@ const CpuDesign = ({ navigation }) => {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>CPU Design</Text>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+    >
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.card}>
+          <Text style={styles.title}>CPU Design</Text>
 
-        <Text style={styles.label}>Architecture Name</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter architecture name"
-          placeholderTextColor="black"
-          value={architectureName}
-          onChangeText={setArchitectureName}
-        />
+          <Text style={styles.label}>Architecture Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter architecture name"
+            placeholderTextColor="black"
+            value={architectureName}
+            onChangeText={setArchitectureName}
+            returnKeyType="next"
+          />
 
-        <Text style={styles.label}>Memory Size</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter memory size (e.g., 64 B)"
-          placeholderTextColor="black"
-          value={memorySize}
-          onChangeText={setMemorySize}
-        />
+          <Text style={styles.label}>Memory Size</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter memory size (e.g., 64 B)"
+            placeholderTextColor="black"
+            value={memorySize}
+            onChangeText={setMemorySize}
+            returnKeyType="next"
+          />
 
-        <Text style={styles.label}>Bus Size</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter bus size (e.g., 32-bit)"
-          placeholderTextColor="black"
-          value={busSize}
-          onChangeText={setBusSize}
-        />
+          <Text style={styles.label}>Bus Size</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter bus size (e.g., 32-bit)"
+            placeholderTextColor="black"
+            value={busSize}
+            onChangeText={setBusSize}
+            returnKeyType="next"
+          />
 
-        <Text style={styles.label}>Stack Size</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter stack size (e.g., 16 B)"
-          placeholderTextColor="black"
-          value={stackSize}
-          onChangeText={setStackSize}
-        />
+          <Text style={styles.label}>Stack Size</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter stack size (e.g., 16 B)"
+            placeholderTextColor="black"
+            value={stackSize}
+            onChangeText={setStackSize}
+            returnKeyType="next"
+          />
 
-        <Text style={styles.label}>No of Registers</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter no of registers"
-          placeholderTextColor="black"
-          keyboardType="numeric"
-          value={registerCount}
-          onChangeText={setRegisterCount}
-        />
+          <Text style={styles.label}>No of Registers</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter no of registers"
+            placeholderTextColor="black"
+            keyboardType="numeric"
+            value={registerCount}
+            onChangeText={setRegisterCount}
+            returnKeyType="next"
+          />
 
-        <Text style={styles.label}>No of Instructions</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter no of instructions"
-          placeholderTextColor="black"
-          keyboardType="numeric"
-          value={instructionCount}
-          onChangeText={setInstructionCount}
-        />
+          <Text style={styles.label}>No of Instructions</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter no of instructions"
+            placeholderTextColor="black"
+            keyboardType="numeric"
+            value={instructionCount}
+            onChangeText={setInstructionCount}
+            returnKeyType="done"
+          />
 
-        {/* ADD BUTTON */}
-        <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
-          <Text style={styles.buttonText}>ADD</Text>
-        </TouchableOpacity>
+          {/* ADD BUTTON */}
+          <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
+            <Text style={styles.buttonText}>ADD</Text>
+          </TouchableOpacity>
 
-        {/* NEXT BUTTON */}
-        <TouchableOpacity style={styles.button} onPress={handleNext}>
-          <Text style={styles.buttonText}>Next</Text>
-        </TouchableOpacity>
+          {/* NEXT BUTTON */}
+          <TouchableOpacity style={styles.button} onPress={handleNext}>
+            <Text style={styles.buttonText}>Next</Text>
+          </TouchableOpacity>
 
-        {/* DISPLAY SUBMITTED DATA */}
-        {submittedData.map((item, index) => (
-          <View key={index} style={styles.submittedCard}>
-            <Text style={styles.submittedText}>
-              <Text style={styles.bold}>Architecture:</Text> {item.architectureName}
-            </Text>
-            <Text style={styles.submittedText}>
-              <Text style={styles.bold}>Memory Size:</Text> {item.memorySize}
-            </Text>
-            <Text style={styles.submittedText}>
-              <Text style={styles.bold}>Bus Size:</Text> {item.busSize}
-            </Text>
-            <Text style={styles.submittedText}>
-              <Text style={styles.bold}>Stack Size:</Text> {item.stackSize}
-            </Text>
-            <Text style={styles.submittedText}>
-              <Text style={styles.bold}>Registers:</Text> {item.registerCount?.toString()}
-            </Text>
-            <Text style={styles.submittedText}>
-              <Text style={styles.bold}>Instructions:</Text> {item.instructionCount?.toString()}
-            </Text>
-          </View>
-        ))}
-      </View>
-    </ScrollView>
+          {/* DISPLAY SUBMITTED DATA */}
+          {submittedData.map((item, index) => (
+            <View key={index} style={styles.submittedCard}>
+              <Text style={styles.submittedText}>
+                <Text style={styles.bold}>Architecture:</Text>{" "}
+                {item.architectureName}
+              </Text>
+              <Text style={styles.submittedText}>
+                <Text style={styles.bold}>Memory Size:</Text> {item.memorySize}
+              </Text>
+              <Text style={styles.submittedText}>
+                <Text style={styles.bold}>Bus Size:</Text> {item.busSize}
+              </Text>
+              <Text style={styles.submittedText}>
+                <Text style={styles.bold}>Stack Size:</Text> {item.stackSize}
+              </Text>
+              <Text style={styles.submittedText}>
+                <Text style={styles.bold}>Registers:</Text>{" "}
+                {item.registerCount?.toString()}
+              </Text>
+              <Text style={styles.submittedText}>
+                <Text style={styles.bold}>Instructions:</Text>{" "}
+                {item.instructionCount?.toString()}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 export default CpuDesign;
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "#f5f7fb",
+  },
+
+  scroll: {
+    flex: 1,
+  },
+
   container: {
     flexGrow: 1,
     backgroundColor: "#f5f7fb",
     padding: 16,
+    paddingBottom: 160,
   },
+
   card: {
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 16,
     elevation: 3,
   },
+
   title: {
     color: "#1f3c88",
     fontSize: 20,
@@ -222,12 +249,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 20,
   },
+
   label: {
     fontSize: 14,
     fontWeight: "bold",
     marginBottom: 6,
     color: "#232323",
   },
+
   input: {
     height: 45,
     borderWidth: 1,
@@ -236,7 +265,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: 12,
     backgroundColor: "#fafcff",
+    color: "#000",
   },
+
   addButton: {
     backgroundColor: "#1f3c88",
     paddingVertical: 12,
@@ -244,28 +275,33 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 10,
   },
+
   button: {
     backgroundColor: "#1f3c88",
     paddingVertical: 12,
     borderRadius: 8,
     marginBottom: 10,
   },
+
   buttonText: {
     color: "#fff",
     textAlign: "center",
     fontSize: 16,
     fontWeight: "600",
   },
+
   submittedCard: {
     backgroundColor: "#eef1fc",
     borderRadius: 8,
     padding: 12,
     marginVertical: 6,
   },
+
   submittedText: {
     fontSize: 14,
     marginBottom: 2,
   },
+
   bold: {
     fontWeight: "bold",
   },

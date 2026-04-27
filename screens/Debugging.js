@@ -5,9 +5,12 @@ import {
     TouchableOpacity,
     StyleSheet,
     ScrollView,
+    ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import { executeProgram } from "../api/executionApi";
+import { getArchitectureDetails } from "../api/detailApi";
 
 const Debugging = () => {
     const route = useRoute();
@@ -15,90 +18,355 @@ const Debugging = () => {
     const scrollRef = useRef(null);
     const runInterval = useRef(null);
 
+    const architecture = route.params?.architecture || null;
+
+    const architectureId =
+        route.params?.architectureId ||
+        route.params?.architecture?.ArchitectureID ||
+        route.params?.architecture?.architectureID ||
+        route.params?.architecture?.id ||
+        route.params?.architecture?.architectureId;
+
+    const routeRegisters = route.params?.registers || [];
+    const routeFlags = route.params?.flags || [];
+
     // ================= RECEIVE PROGRAM =================
     const [program, setProgram] = useState([]);
     const [currentLine, setCurrentLine] = useState(0);
+    const [stepIndex, setStepIndex] = useState(0);
+
+    // false = no loading, "step" = step loading, "run" = run loading
     const [isRunning, setIsRunning] = useState(false);
+
     const [output, setOutput] = useState("");
 
+    // ================= DYNAMIC REGISTERS / FLAGS FROM DATABASE =================
+    const [registers, setRegisters] = useState([]);
+    const [flags, setFlags] = useState([]);
+    const [generalRegisters, setGeneralRegisters] = useState([]);
+    const [flagRegisters, setFlagRegisters] = useState([]);
+
+    const isStepLoading = isRunning === "step";
+    const isRunLoading = isRunning === "run";
+    const isAnyLoading = isStepLoading || isRunLoading;
+
+    const makeRegisterBoxes = (items = []) => {
+        if (!Array.isArray(items)) return [];
+
+        return items.map((reg, index) => ({
+            name:
+                reg?.name ||
+                reg?.Name ||
+                reg?.RegisterName ||
+                reg?.registerName ||
+                `R${index + 1}`,
+            value: 0,
+        }));
+    };
+
+    const makeFlagBoxes = (items = []) => {
+        if (!Array.isArray(items)) return [];
+
+        return items.map((flag, index) => ({
+            name:
+                flag?.name ||
+                flag?.Name ||
+                flag?.FlagName ||
+                flag?.flagName ||
+                flag?.FlagRegisterName ||
+                flag?.flagRegisterName ||
+                flag?.RegisterName ||
+                flag?.registerName ||
+                `F${index + 1}`,
+            value: 0,
+        }));
+    };
+
+    const getRegisterSource = () => {
+        if (generalRegisters.length > 0) return generalRegisters;
+        if (routeRegisters.length > 0) return routeRegisters;
+
+        return (
+            architecture?.generalRegisters ||
+            architecture?.GeneralRegisters ||
+            architecture?.Registers ||
+            architecture?.registers ||
+            architecture?.ArchitectureRegisters ||
+            architecture?.architectureRegisters ||
+            []
+        );
+    };
+
+    const getFlagSource = () => {
+        if (flagRegisters.length > 0) return flagRegisters;
+        if (routeFlags.length > 0) return routeFlags;
+
+        return (
+            architecture?.flagRegisters ||
+            architecture?.FlagRegisters ||
+            architecture?.Flags ||
+            architecture?.flags ||
+            architecture?.ArchitectureFlags ||
+            architecture?.architectureFlags ||
+            architecture?.ArchitectureFlagRegisters ||
+            architecture?.architectureFlagRegisters ||
+            []
+        );
+    };
+
+    const getArchitectureRegisters = () => {
+        return makeRegisterBoxes(getRegisterSource());
+    };
+
+    const getArchitectureFlags = () => {
+        return makeFlagBoxes(getFlagSource());
+    };
+
+    // ================= OUTPUT SAME AS REGISTER VISUALIZATION =================
+    const getOutputFromResult = (result) => {
+        const errors = result?.Errors || result?.errors || [];
+
+        if (errors.length > 0) {
+            return errors.join("\n");
+        }
+
+        const registersArray = result?.Registers || result?.registers || [];
+
+        return `Result: ${registersArray[0] ?? 0}`;
+    };
+
+    // ================= INITIAL PROGRAM RECEIVE =================
     useEffect(() => {
         if (route.params?.program) {
             setProgram(route.params.program);
             setCurrentLine(0);
+            setStepIndex(0);
         }
+
+        console.log("DEBUGGING SCREEN RECEIVED DATA:", {
+            architectureId,
+            architecture,
+            program: route.params?.program || [],
+            registers: routeRegisters,
+            flags: routeFlags,
+        });
     }, [route.params]);
 
-    // ================= MOCK REGISTERS (API LATER) =================
-    const [registers, setRegisters] = useState([
-        { name: "R1", value: 0 },
-        { name: "R2", value: 0 },
-        { name: "R3", value: 0 },
-        { name: "R4", value: 0 },
-        { name: "PC", value: 0 },
-        { name: "Sp", value: 0 },
-        { name: "IR", value: 0 },
+    // ================= FETCH CORRECT DB REGISTER / FLAG NAMES =================
+    useEffect(() => {
+        let isMounted = true;
 
-    ]);
+        const fetchDetails = async () => {
+            try {
+                if (!architectureId) return;
 
-    const [flags, setFlags] = useState([
-        { name: "Carry", value: 0 },
-        { name: "Overflow", value: 0 },
-        { name: "Sign", value: 0 },
-        { name: "Zero", value: 0 },
-    ]);
+                const data = await getArchitectureDetails(architectureId);
 
-    // ================= STEP FORWARD =================
-    const handleStepForward = () => {
-        if (currentLine < program.length - 1) {
-            const next = currentLine + 1;
-            setCurrentLine(next);
-            updatePC(next);
+                if (!isMounted) return;
+
+                const dbGeneralRegisters = data?.generalRegisters || [];
+                const dbFlagRegisters = data?.flagRegisters || [];
+
+                setGeneralRegisters(dbGeneralRegisters);
+                setFlagRegisters(dbFlagRegisters);
+
+                setRegisters(makeRegisterBoxes(dbGeneralRegisters));
+                setFlags(makeFlagBoxes(dbFlagRegisters));
+
+                console.log("DEBUGGING DETAILS FROM API:", {
+                    generalRegisters: dbGeneralRegisters,
+                    flagRegisters: dbFlagRegisters,
+                });
+            } catch (err) {
+                console.log("Debugging Details Fetch Error:", err);
+
+                if (!isMounted) return;
+
+                setRegisters(getArchitectureRegisters());
+                setFlags(getArchitectureFlags());
+            }
+        };
+
+        fetchDetails();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [architectureId]);
+
+    // ================= FALLBACK IF DETAILS API DOES NOT RETURN =================
+    useEffect(() => {
+        if (generalRegisters.length === 0 && routeRegisters.length > 0) {
+            setRegisters(makeRegisterBoxes(routeRegisters));
+        }
+
+        if (flagRegisters.length === 0 && routeFlags.length > 0) {
+            setFlags(makeFlagBoxes(routeFlags));
+        }
+    }, [generalRegisters, flagRegisters, routeRegisters, routeFlags]);
+
+    const mapApiRegistersWithDbNames = (apiRegisters) => {
+        const dbRegisterBoxes = getArchitectureRegisters();
+
+        if (!apiRegisters || !Array.isArray(apiRegisters)) {
+            return dbRegisterBoxes;
+        }
+
+        if (dbRegisterBoxes.length > 0) {
+            return dbRegisterBoxes.map((reg, index) => ({
+                name: reg.name,
+                value: apiRegisters[index] ?? 0,
+            }));
+        }
+
+        return apiRegisters.map((value, index) => ({
+            name: `R${index + 1}`,
+            value: value ?? 0,
+        }));
+    };
+
+    const mapApiFlagsWithDbNames = (apiFlags) => {
+        const dbFlagBoxes = getArchitectureFlags();
+
+        if (!apiFlags || !Array.isArray(apiFlags)) {
+            return dbFlagBoxes;
+        }
+
+        if (dbFlagBoxes.length > 0) {
+            return dbFlagBoxes.map((flag, index) => ({
+                name: flag.name,
+                value:
+                    apiFlags[index] === true
+                        ? 1
+                        : apiFlags[index] === false
+                        ? 0
+                        : apiFlags[index] ?? 0,
+            }));
+        }
+
+        return [];
+    };
+
+    // ================= STEP FORWARD USING EXECUTE API =================
+    const handleStepForward = async () => {
+        if (isAnyLoading) return;
+
+        if (!architectureId) {
+            setOutput("Architecture ID missing.");
+            return;
+        }
+
+        if (!program || program.length === 0) {
+            setOutput("No program found.");
+            return;
+        }
+
+        if (stepIndex >= program.length) {
+            setOutput("No more instructions to execute.");
+            return;
+        }
+
+        try {
+            setIsRunning("step");
+            setOutput("");
+
+            // First click: first instruction
+            // Second click: first + second instruction
+            // Third click: first + second + third instruction
+            const stepProgramLines = program.slice(0, stepIndex + 1);
+
+            const result = await executeProgram(architectureId, stepProgramLines);
+
+            const updatedRegisters = mapApiRegistersWithDbNames(result?.Registers);
+            const updatedFlags = mapApiFlagsWithDbNames(result?.Flags);
+
+            setRegisters(updatedRegisters);
+            setFlags(updatedFlags);
+            setOutput(getOutputFromResult(result));
+
+            // highlight the line that was actually executed
+            setCurrentLine(stepIndex);
+
+            // prepare next step
+            setStepIndex((prev) => prev + 1);
+        } catch (error) {
+            setOutput(String(error));
+        } finally {
+            setIsRunning(false);
         }
     };
 
     // ================= STEP BACK =================
     const handleStepBack = () => {
-        if (currentLine > 0) {
-            const prev = currentLine - 1;
-            setCurrentLine(prev);
-            updatePC(prev);
+        if (isAnyLoading) return;
+
+        if (stepIndex > 0) {
+            const prevStep = stepIndex - 1;
+            const prevLine = prevStep > 0 ? prevStep - 1 : 0;
+
+            setStepIndex(prevStep);
+            setCurrentLine(prevLine);
+            updatePC(prevLine);
         }
     };
 
-    // ================= RUN FULL PROGRAM =================
-    const handleRun = () => {
-        if (isRunning) return;
+    // ================= RUN FULL PROGRAM WITH EXECUTE API =================
+    const handleRun = async () => {
+        if (isAnyLoading) return;
 
-        setIsRunning(true);
+        if (!architectureId) {
+            setOutput("Architecture ID missing.");
+            return;
+        }
 
-        runInterval.current = setInterval(() => {
-            setCurrentLine(prev => {
-                if (prev >= program.length - 1) {
-                    clearInterval(runInterval.current);
-                    setIsRunning(false);
-                    return prev;
-                }
+        if (!program || program.length === 0) {
+            setOutput("No program found.");
+            return;
+        }
 
-                const next = prev + 1;
-                updatePC(next);
-                return next;
-            });
-        }, 700);
+        try {
+            setIsRunning("run");
+            setOutput("");
+
+            const result = await executeProgram(architectureId, program);
+
+            const updatedRegisters = mapApiRegistersWithDbNames(result?.Registers);
+            const updatedFlags = mapApiFlagsWithDbNames(result?.Flags);
+
+            setRegisters(updatedRegisters);
+            setFlags(updatedFlags);
+            setOutput(getOutputFromResult(result));
+
+            setCurrentLine(program.length - 1);
+            setStepIndex(program.length);
+        } catch (error) {
+            setOutput(String(error));
+        } finally {
+            setIsRunning(false);
+        }
     };
 
     // ================= RELOAD =================
     const handleReload = () => {
+        if (isAnyLoading) return;
+
         clearInterval(runInterval.current);
         setIsRunning(false);
         setCurrentLine(0);
-        updatePC(0);
+        setStepIndex(0);
+        setOutput("");
+
+        setRegisters(getArchitectureRegisters());
+        setFlags(getArchitectureFlags());
     };
 
     // ================= UPDATE PC REGISTER =================
     const updatePC = (value) => {
-        setRegisters(prev =>
-            prev.map(reg =>
-                reg.name === "PC" ? { ...reg, value: value } : reg
+        setRegisters((prev) =>
+            prev.map((reg) =>
+                reg.name === "PC" || reg.name === "Pc" || reg.name === "pc"
+                    ? { ...reg, value: value }
+                    : reg
             )
         );
     };
@@ -117,36 +385,92 @@ const Debugging = () => {
                 <TouchableOpacity onPress={() => navigation.goBack()}>
                     <Ionicons name="arrow-back" size={24} color="#1E3A8A" />
                 </TouchableOpacity>
+
                 <Text style={styles.headerTitle}>Debugging</Text>
+
                 <View style={{ width: 24 }} />
             </View>
-            <ScrollView style={styles.container}>
 
+            <ScrollView style={styles.container}>
                 {/* ================= CONTROL BUTTONS ================= */}
                 <View style={styles.buttonRow}>
-
-                    <TouchableOpacity style={styles.controlBtn} onPress={handleStepBack}>
-                        <Ionicons name="arrow-back-outline" size={18} />
+                    <TouchableOpacity
+                        style={[
+                            styles.controlBtn,
+                            isAnyLoading && styles.disabledBtn,
+                        ]}
+                        onPress={handleStepBack}
+                        disabled={isAnyLoading}
+                    >
+                        <Ionicons
+                            name="arrow-back-outline"
+                            size={18}
+                            color="#2C3E94"
+                        />
                         <Text style={styles.controlText}>Back</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.controlBtn} onPress={handleStepForward}>
-                        <Ionicons name="arrow-forward-outline" size={18} />
-                        <Text style={styles.controlText}>Step</Text>
-                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[
+                            styles.controlBtn,
+                            isAnyLoading && styles.disabledBtn,
+                        ]}
+                        onPress={handleStepForward}
+                        disabled={isAnyLoading}
+                    >
+                        {isStepLoading ? (
+                            <ActivityIndicator size="small" color="#2C3E94" />
+                        ) : (
+                            <Ionicons
+                                name="arrow-forward-outline"
+                                size={18}
+                                color="#2C3E94"
+                            />
+                        )}
 
-                    <TouchableOpacity style={styles.controlBtn} onPress={handleRun}>
-                        <Ionicons name="play-outline" size={18} />
                         <Text style={styles.controlText}>
-                            {isRunning ? "Running..." : "Run"}
+                            {isStepLoading ? "Wait" : "Step"}
                         </Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.controlBtn} onPress={handleReload}>
-                        <Ionicons name="refresh-outline" size={18} />
-                        <Text style={styles.controlText}>Reload</Text>
+                    <TouchableOpacity
+                        style={[
+                            styles.controlBtn,
+                            isAnyLoading && styles.disabledBtn,
+                        ]}
+                        onPress={handleRun}
+                        disabled={isAnyLoading}
+                    >
+                        {isRunLoading ? (
+                            <ActivityIndicator size="small" color="#2C3E94" />
+                        ) : (
+                            <Ionicons
+                                name="play-outline"
+                                size={18}
+                                color="#2C3E94"
+                            />
+                        )}
+
+                        <Text style={styles.controlText}>
+                            {isRunLoading ? "Running..." : "Run"}
+                        </Text>
                     </TouchableOpacity>
 
+                    <TouchableOpacity
+                        style={[
+                            styles.controlBtn,
+                            isAnyLoading && styles.disabledBtn,
+                        ]}
+                        onPress={handleReload}
+                        disabled={isAnyLoading}
+                    >
+                        <Ionicons
+                            name="refresh-outline"
+                            size={18}
+                            color="#2C3E94"
+                        />
+                        <Text style={styles.controlText}>Reload</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {/* ================= PROGRAM DISPLAY ================= */}
@@ -198,8 +522,9 @@ const Debugging = () => {
                     </View>
                 </View>
 
-                {/* output Display */}
+                {/* ================= OUTPUT DISPLAY ================= */}
                 <Text style={styles.sectionTitle}>OutPut Display</Text>
+
                 <View style={styles.outputBox}>
                     <Text style={styles.outputText}>{output || "No Output"}</Text>
                 </View>
@@ -253,6 +578,11 @@ const styles = StyleSheet.create({
         borderColor: "#2C3E94",
         padding: 8,
         borderRadius: 8,
+        minWidth: 74,
+        justifyContent: "center",
+    },
+    disabledBtn: {
+        opacity: 0.6,
     },
     controlText: {
         marginLeft: 5,
@@ -319,19 +649,33 @@ const styles = StyleSheet.create({
     dynamicGrid: {
         flexDirection: "row",
         flexWrap: "wrap",
-        justifyContent: "flex-start", // align items to the left
-        gap: 12, // spacing between items (works in RN 0.71+)
+        justifyContent: "flex-start",
+        gap: 12,
     },
-
     dynamicRegItem: {
-        minWidth: 70, // minimum width for a register
-        maxWidth: 90, // max width
-        flexGrow: 1,  // allows shrinking and expanding dynamically
+        minWidth: 70,
+        maxWidth: 90,
+        flexGrow: 1,
         alignItems: "center",
         marginBottom: 15,
     },
-    outputTitle: { fontSize: 12, fontWeight: "600", color: "#334155", marginBottom: 4, marginTop: 2 },
-    outputBox: { backgroundColor: "white", borderRadius: 8, padding: 12, borderWidth: 1, borderColor: "#E1E7F5", minHeight: 55 },
-    outputText: { fontSize: 12, color: "#64748B" },
-
+    outputTitle: {
+        fontSize: 12,
+        fontWeight: "600",
+        color: "#334155",
+        marginBottom: 4,
+        marginTop: 2,
+    },
+    outputBox: {
+        backgroundColor: "white",
+        borderRadius: 8,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: "#E1E7F5",
+        minHeight: 55,
+    },
+    outputText: {
+        fontSize: 12,
+        color: "#64748B",
+    },
 });

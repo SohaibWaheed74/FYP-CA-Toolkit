@@ -22,10 +22,6 @@ const DashBoard = () => {
 
   const { setSelectedArchitecture } = useContext(ArchitectureContext);
 
-  useEffect(() => {
-    fetchArchitectures();
-  }, []);
-
   const fetchArchitectures = async () => {
     try {
       setLoading(true);
@@ -41,13 +37,20 @@ const DashBoard = () => {
     }
   };
 
+  useEffect(() => {
+    fetchArchitectures();
+
+    const unsubscribe = navigation.addListener("focus", () => {
+      fetchArchitectures();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
   const handleDetail = (id) => {
     navigation.navigate("Detailscreen", { architectureId: id });
   };
 
-  // =========================
-  // FIXED USE FUNCTION
-  // =========================
   const handleUse = async (id) => {
     try {
       console.log("USE CLICKED:", id);
@@ -68,17 +71,9 @@ const DashBoard = () => {
 
       setSelectedArchitecture(fullArchitecture);
 
-      // ✅ FIXED NAVIGATION (IMPORTANT)
-      // navigation.navigate("EditorStack", {
-      //   screen: "Editor",
-      //   params: {
-      //     architecture: fullArchitecture,
-      //   },
-      // });
       navigation.navigate("Editor", {
         architecture: fullArchitecture,
       });
-
     } catch (error) {
       console.log("Use Error:", error.message);
     } finally {
@@ -86,37 +81,18 @@ const DashBoard = () => {
     }
   };
 
-  // =========================
-  // UPDATE (UNCHANGED LOGIC)
-  // =========================
-  const handleUpdate = async (id) => {
-    try {
-      setActionLoadingId(id);
+  const handleUpdate = (id) => {
+  if (!id) {
+    alert("Architecture ID not found");
+    return;
+  }
 
-      const data = await getArchitectureDetails(id);
+  console.log("Opening Update Screen for ID:", id);
 
-      if (!data?.Architecture) {
-        throw new Error("Invalid architecture response");
-      }
-
-      const fullArchitecture = {
-        cpu: data.Architecture,
-        registers: data.Registers || [],
-        addressingModes: data.AddressingModes || [],
-        instructions: data.Instructions || [],
-        architectureId: id,
-      };
-
-      navigation.navigate("UpdateScreen", {
-        architectureData: fullArchitecture,
-      });
-
-    } catch (error) {
-      console.log("Update Load Error:", error.message);
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
+  navigation.navigate("UpdateScreen", {
+    architectureId: id,
+  });
+};
 
   const renderItem = ({ item }) => (
     <View style={styles.card}>
@@ -129,7 +105,6 @@ const DashBoard = () => {
       <Text style={styles.cardText}>Bus: {item.BusSize} bits</Text>
 
       <View style={styles.cardButtons}>
-
         <TouchableOpacity
           style={styles.useButton}
           onPress={() => handleUse(item.ArchitectureID)}
@@ -156,7 +131,6 @@ const DashBoard = () => {
         >
           <Text style={styles.buttonText}>Details</Text>
         </TouchableOpacity>
-
       </View>
     </View>
   );
@@ -173,6 +147,7 @@ const DashBoard = () => {
     return (
       <View style={styles.centered}>
         <Text style={{ color: "red", textAlign: "center" }}>{error}</Text>
+
         <TouchableOpacity style={styles.retryButton} onPress={fetchArchitectures}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
@@ -183,6 +158,7 @@ const DashBoard = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>My Architectures</Text>
+
       <Text style={styles.subHeader}>
         Manage and explore your computer architecture designs
       </Text>
@@ -296,7 +272,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
   },
-
   retryText: {
     color: "white",
     fontWeight: "bold",

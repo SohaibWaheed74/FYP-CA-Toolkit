@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const BASE_URL = "http://192.168.18.104/ComputerArchitectureToolkitAPI/api";
+const BASE_URL = "http://192.168.18.108/ComputerArchitectureToolkitAPI/api";
+// const BASE_URL = "http://192.168.1.8/ComputerArchitectureToolkitAPI/api";
 
 // --------------------------------- USE ARCHITECTURE ---------------------------------
 export const useArchitectureForExecution = async (architectureId) => {
@@ -21,6 +22,19 @@ export const executeProgram = async (architectureId, programLines) => {
     const response = await axios.post(
       `${BASE_URL}/execution/execute/${architectureId}`,
       programLines
+    );
+
+    return response.data;
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+};
+
+// --------------------------------- STEP FORWARD ---------------------------------
+export const stepForwardProgram = async (architectureId) => {
+  try {
+    const response = await axios.post(
+      `${BASE_URL}/execution/stepForward/${architectureId}`
     );
 
     return response.data;

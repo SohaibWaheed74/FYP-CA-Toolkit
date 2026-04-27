@@ -1,5 +1,5 @@
-// const BASE_URL = "http://192.168.18.104/ComputerArchitectureToolkitAPI/api";
-const BASE_URL = "http://192.168.18.104/ComputerArchitectureToolkitAPI/api";
+// const BASE_URL = "http://192.168.1.8/ComputerArchitectureToolkitAPI/api";
+const BASE_URL = "http://192.168.18.108/ComputerArchitectureToolkitAPI/api";
 
 // ================= FETCH ALL ARCHITECTURES =================
 export const getAllArchitectures = async () => {
@@ -30,6 +30,8 @@ export const getArchitectureDetails = async (architectureId) => {
     }
 
     const data = await response.json();
+
+    console.log("RAW ARCHITECTURE DETAILS API DATA:", JSON.stringify(data, null, 2));
 
     // ===== Architecture Info =====
     const architecture = {
@@ -69,6 +71,20 @@ export const getArchitectureDetails = async (architectureId) => {
       mnemonic: i.Mnemonics,
       opcode: i.Opcode,
       set: i.Action || "-",
+
+      // ✅ IMPORTANT: interrupt data yahan pass karna zaroori hai
+      interruptSymbol:
+        i.InterruptSymbol && i.InterruptSymbol !== "NULL"
+          ? i.InterruptSymbol
+          : "",
+      outputRegister:
+        i.OutputRegister && i.OutputRegister !== "NULL"
+          ? i.OutputRegister
+          : "",
+      inputRegister:
+        i.InputRegister && i.InputRegister !== "NULL"
+          ? i.InputRegister
+          : "",
     }));
 
     const actions = (data?.Instructions || []).map((i) => ({
@@ -77,7 +93,7 @@ export const getArchitectureDetails = async (architectureId) => {
       action: i.Action || "-",
     }));
 
-    // ===== Addressing Modes (FINAL CORRECT VERSION) =====
+    // ===== Addressing Modes =====
     const addressingModes = (data?.AddressingModes || []).map((m) => ({
       id: m.AddressingModeID,
       name: m.AddressingModeName || "-",
