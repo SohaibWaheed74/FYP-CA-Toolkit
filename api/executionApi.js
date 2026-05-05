@@ -1,13 +1,19 @@
 import axios from "axios";
 
 const BASE_URL = "http://192.168.18.108/ComputerArchitectureToolkitAPI/api";
-// const BASE_URL = "http://192.168.1.8/ComputerArchitectureToolkitAPI/api";
+// const BASE_URL = "http://192.168.1.7/ComputerArchitectureToolkitAPI/api";
 
 // --------------------------------- USE ARCHITECTURE ---------------------------------
 export const useArchitectureForExecution = async (architectureId) => {
   try {
     const response = await axios.post(
-      `${BASE_URL}/execution/useArchitecture/${architectureId}`
+      `${BASE_URL}/execution/useArchitecture/${architectureId}`,
+      null,
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
     );
 
     return response.data;
@@ -21,7 +27,12 @@ export const executeProgram = async (architectureId, programLines) => {
   try {
     const response = await axios.post(
       `${BASE_URL}/execution/execute/${architectureId}`,
-      programLines
+      programLines,
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
     );
 
     return response.data;
@@ -34,7 +45,13 @@ export const executeProgram = async (architectureId, programLines) => {
 export const stepForwardProgram = async (architectureId) => {
   try {
     const response = await axios.post(
-      `${BASE_URL}/execution/stepForward/${architectureId}`
+      `${BASE_URL}/execution/stepForward/${architectureId}`,
+      null,
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
     );
 
     return response.data;
@@ -43,23 +60,35 @@ export const stepForwardProgram = async (architectureId) => {
   }
 };
 
-// --------------------------------- ERROR NORMALIZER (IMPORTANT) ---------------------------------
+// --------------------------------- ERROR NORMALIZER ---------------------------------
 const normalizeApiError = (error) => {
+  let message = "Network error occurred";
+
   if (error.response?.data) {
     const data = error.response.data;
 
-    // backend array errors
+    // Backend array errors
     if (Array.isArray(data)) {
-      return data.join("\n");
+      message = data.join("\n");
     }
 
-    // backend object errors
-    if (typeof data === "object") {
-      return JSON.stringify(data, null, 2);
+    // Backend object errors
+    else if (typeof data === "object") {
+      message =
+        data.Message ||
+        data.message ||
+        data.ExceptionMessage ||
+        data.error ||
+        JSON.stringify(data, null, 2);
     }
 
-    return data;
+    // Backend string error
+    else {
+      message = data;
+    }
+  } else if (error.message) {
+    message = error.message;
   }
 
-  return error.message || "Network error occurred";
+  return new Error(message);
 };

@@ -36,6 +36,7 @@ const RegisterDesign = () => {
   const [flagRegisterName, setFlagRegisterName] = useState("");
   const [flagRegisterAction, setFlagRegisterAction] = useState("");
   const [gpRegisterName, setGpRegisterName] = useState("");
+
   const [flagRegisters, setFlagRegisters] = useState([]);
   const [gpRegisters, setGpRegisters] = useState([]);
 
@@ -72,15 +73,15 @@ const RegisterDesign = () => {
     return false;
   };
 
-  const isDuplicateRegister = name => {
+  const isDuplicateRegister = (name) => {
     const newName = name.trim().toLowerCase();
 
     const existsInGP = gpRegisters.some(
-      gp => gp.trim().toLowerCase() === newName
+      (gp) => gp.trim().toLowerCase() === newName
     );
 
     const existsInFlag = flagRegisters.some(
-      flag => flag.name.trim().toLowerCase() === newName
+      (flag) => flag.name.trim().toLowerCase() === newName
     );
 
     if (existsInGP || existsInFlag) {
@@ -91,10 +92,13 @@ const RegisterDesign = () => {
     return false;
   };
 
-  // ================= Functions =================
+  // ================= Add Flag Register =================
   const addFlagRegister = () => {
-    if (!flagRegisterName.trim() || !flagRegisterAction.trim()) {
-      Alert.alert("Error", "Please enter flag register name and action.");
+    if (!flagRegisterName.trim()) {
+      Alert.alert(
+        "Flag Register Optional",
+        "Flag register create karna optional hai. Agar create karna hai to flag register name enter karein, warna direct Next press kar dein."
+      );
       return;
     }
 
@@ -106,18 +110,19 @@ const RegisterDesign = () => {
       return;
     }
 
-    setFlagRegisters(prev => [
-      ...prev,
-      {
-        name: flagRegisterName.trim(),
-        action: flagRegisterAction.trim(),
-      },
-    ]);
+    const newFlagRegister = {
+      name: flagRegisterName.trim(),
+      action: flagRegisterAction.trim() || "",
+      isFlagRegister: true,
+    };
+
+    setFlagRegisters((prev) => [...prev, newFlagRegister]);
 
     setFlagRegisterName("");
     setFlagRegisterAction("");
   };
 
+  // ================= Add GP Register =================
   const addGpRegister = () => {
     if (!gpRegisterName.trim()) {
       Alert.alert("Error", "Please enter GP register name.");
@@ -132,10 +137,11 @@ const RegisterDesign = () => {
       return;
     }
 
-    setGpRegisters(prev => [...prev, gpRegisterName.trim()]);
+    setGpRegisters((prev) => [...prev, gpRegisterName.trim()]);
     setGpRegisterName("");
   };
 
+  // ================= Add Addressing Mode =================
   const addAddressingMode = () => {
     if (!addrMode || !addrCode || !symbol.trim()) {
       Alert.alert(
@@ -151,18 +157,44 @@ const RegisterDesign = () => {
       symbol: symbol.trim(),
     };
 
-    setAddressingList(prev => [...prev, newMode]);
+    setAddressingList((prev) => [...prev, newMode]);
 
     setAddrMode("");
     setAddrCode("");
     setSymbol("");
   };
 
+  // ================= Next =================
   const handleNext = () => {
+    // IMPORTANT:
+    // Backend ke liye PascalCase keys bhej rahe hain:
+    // Name, Action, IsFlagRegister
+    const registers = [
+      ...flagRegisters.map((flag) => ({
+        Name: flag.name,
+        Action: flag.action || "",
+        IsFlagRegister: true,
+      })),
+
+      ...gpRegisters.map((gp) => ({
+        Name: gp,
+        Action: "",
+        IsFlagRegister: false,
+      })),
+    ];
+
+    console.log("REGISTER DESIGN FINAL REGISTERS:", JSON.stringify(registers, null, 2));
+
     navigation.navigate("InstructionDesign", {
       cpuData,
+
+      // New combined list for DB/API
+      registers,
+
+      // Old separate lists also sending, taake next screen break na ho
       flagRegisters,
       gpRegisters,
+
       addressingList,
     });
   };
@@ -191,19 +223,20 @@ const RegisterDesign = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* Register Count Info */}
-        {/* 
-        <View style={styles.infoCard}>
+        {/* <View style={styles.infoCard}>
           <Text style={styles.infoText}>
             Total Registers Allowed: {maxRegisters}
           </Text>
+
           <Text style={styles.infoText}>
             Added Registers: {totalRegisters}
           </Text>
+
           <Text style={styles.infoText}>
-            Remaining Registers: {remainingRegisters < 0 ? 0 : remainingRegisters}
+            Remaining Registers:{" "}
+            {remainingRegisters < 0 ? 0 : remainingRegisters}
           </Text>
-        </View> 
-        */}
+        </View> */}
 
         {/* -------- Flag Register -------- */}
         <Text style={styles.label}>Flag Register Name</Text>
@@ -236,8 +269,15 @@ const RegisterDesign = () => {
             <Text style={styles.submittedText}>
               <Text style={styles.bold}>Flag Register:</Text> {flag.name}
             </Text>
+
             <Text style={styles.submittedText}>
-              <Text style={styles.bold}>Action:</Text> {flag.action}
+              <Text style={styles.bold}>Action:</Text>{" "}
+              {flag.action ? flag.action : "No action"}
+            </Text>
+
+            <Text style={styles.submittedText}>
+              <Text style={styles.bold}>Is Flag Register:</Text>{" "}
+              {flag.isFlagRegister ? "True" : "False"}
             </Text>
           </View>
         ))}
@@ -262,6 +302,10 @@ const RegisterDesign = () => {
             <Text style={styles.submittedText}>
               <Text style={styles.bold}>GP Register:</Text> {gp}
             </Text>
+
+            <Text style={styles.submittedText}>
+              <Text style={styles.bold}>Is Flag Register:</Text> False
+            </Text>
           </View>
         ))}
 
@@ -276,7 +320,7 @@ const RegisterDesign = () => {
           valueField="value"
           placeholder="Select addressing mode"
           value={addrMode || null}
-          onChange={item => setAddrMode(item.value)}
+          onChange={(item) => setAddrMode(item.value)}
         />
 
         <Text style={styles.label}>Addressing Mode Code</Text>
@@ -287,7 +331,7 @@ const RegisterDesign = () => {
           valueField="value"
           placeholder="Select Addressing Mode Code"
           value={addrCode || null}
-          onChange={item => setAddrCode(item.value)}
+          onChange={(item) => setAddrCode(item.value)}
         />
 
         <Text style={styles.label}>Symbol</Text>
@@ -309,9 +353,11 @@ const RegisterDesign = () => {
             <Text style={styles.submittedText}>
               <Text style={styles.bold}>Mode:</Text> {addr.mode}
             </Text>
+
             <Text style={styles.submittedText}>
               <Text style={styles.bold}>Code:</Text> {addr.code}
             </Text>
+
             <Text style={styles.submittedText}>
               <Text style={styles.bold}>Symbol:</Text> {addr.symbol}
             </Text>

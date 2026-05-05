@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,10 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
+  Alert,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import {
   getArchitectureDetails,
@@ -49,6 +53,7 @@ const emptyInstruction = {
 };
 
 const operandTypeOptions = ["Register", "Immediate", "Memory"];
+const interruptSymbolOptions = ["1 (Input)", "2 (Output)"];
 
 const normalizeRegister = (reg) => ({
   ...emptyRegister,
@@ -77,6 +82,15 @@ const normalizeAddressing = (mode) => ({
     mode?.symbol ||
     "",
 });
+
+const normalizeInterruptSymbol = (value) => {
+  const symbol = String(value || "").trim();
+
+  if (symbol === "1") return "1 (Input)";
+  if (symbol === "2") return "2 (Output)";
+
+  return symbol;
+};
 
 const CustomDropdown = ({
   value,
@@ -127,6 +141,48 @@ const CustomDropdown = ({
   );
 };
 
+const CardHeader = ({ title, onPlusPress }) => (
+  <>
+    <View style={styles.cardTitleRow}>
+      <Text style={styles.cardTitle}>{title}</Text>
+
+      {onPlusPress ? (
+        <TouchableOpacity style={styles.cardPlusButton} onPress={onPlusPress}>
+          <Text style={styles.cardPlusText}>+</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+    <View style={styles.divider} />
+  </>
+);
+
+const SectionHeader = ({ title, onPlusPress }) => (
+  <View style={styles.sectionHeaderRow}>
+    <Text style={styles.sectionText}>{title}</Text>
+
+    {onPlusPress ? (
+      <TouchableOpacity style={styles.sectionPlusButton} onPress={onPlusPress}>
+        <Text style={styles.sectionPlusText}>+</Text>
+      </TouchableOpacity>
+    ) : null}
+  </View>
+);
+
+const AllDataModal = ({ visible, fieldName, onOk }) => (
+  <Modal visible={visible} transparent animationType="fade" onRequestClose={onOk}>
+    <View style={styles.modalOverlay}>
+      <View style={styles.alertBox}>
+        <Text style={styles.alertTitle}>All {fieldName} Data Fetched</Text>
+        
+
+        <TouchableOpacity style={styles.alertButton} onPress={onOk}>
+          <Text style={styles.alertButtonText}>OK</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </Modal>
+);
+
 const UpdateArchitectureScreen = ({ route, navigation }) => {
   const architectureId =
     route?.params?.architectureId ||
@@ -134,8 +190,17 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
     route?.params?.architectureData?.architectureId ||
     route?.params?.architectureData?.id;
 
+  const modalActionRef = useRef(null);
+  const scrollRef = useRef(null);
+
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [architectureData, setArchitectureData] = useState(null);
+
+  const [allDataModal, setAllDataModal] = useState({
+    visible: false,
+    fieldName: "",
+  });
 
   const [cpuData, setCpuData] = useState({
     ArchitectureID: "",
@@ -169,9 +234,37 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
 
   const openedDropdown = currentInstruction?._openedDropdown || null;
 
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 300);
+  };
+
   const handleBack = () => {
     if (navigation?.goBack) {
       navigation.goBack();
+    }
+  };
+
+  const showAllDataFetchedAlert = (fieldName, onOk) => {
+    modalActionRef.current = onOk;
+    setAllDataModal({
+      visible: true,
+      fieldName,
+    });
+  };
+
+  const closeAllDataModal = () => {
+    const action = modalActionRef.current;
+    modalActionRef.current = null;
+
+    setAllDataModal({
+      visible: false,
+      fieldName: "",
+    });
+
+    if (typeof action === "function") {
+      setTimeout(action, 100);
     }
   };
 
@@ -204,10 +297,10 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
     const operands =
       numberOfOperands > 0
         ? Array.from({ length: numberOfOperands }, (_, index) => ({
-            name: `Operand ${index + 1}`,
-            type: instruction?.operands?.[index]?.type || "Register",
-            isDestination: destinationOperand === index + 1,
-          }))
+          name: `Operand ${index + 1}`,
+          type: instruction?.operands?.[index]?.type || "Register",
+          isDestination: destinationOperand === index + 1,
+        }))
         : emptyInstruction.operands;
 
     return {
@@ -228,8 +321,9 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
       InstructionFormat:
         instruction?.InstructionFormat || instruction?.instructionFormat || 0,
       Action: instruction?.Action || instruction?.action || "",
-      InterruptSymbol:
-        instruction?.InterruptSymbol || instruction?.interruptSymbol || "",
+      InterruptSymbol: normalizeInterruptSymbol(
+        instruction?.InterruptSymbol || instruction?.interruptSymbol || ""
+      ),
       InputRegister:
         instruction?.InputRegister || instruction?.inputRegister || "",
       OutputRegister:
@@ -286,15 +380,15 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
       StackSize: String(architecture.StackSize || architecture.stackSize || ""),
       NumberOfRegisters: String(
         architecture.NumberOfRegisters ||
-          architecture.numberOfRegisters ||
-          allRegisters.length ||
-          ""
+        architecture.numberOfRegisters ||
+        allRegisters.length ||
+        ""
       ),
       NumberOfInstructions: String(
         architecture.NumberOfInstructions ||
-          architecture.numberOfInstructions ||
-          normalizedInstructions.length ||
-          ""
+        architecture.numberOfInstructions ||
+        normalizedInstructions.length ||
+        ""
       ),
     });
 
@@ -323,7 +417,7 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
         setLoading(true);
 
         if (!architectureId) {
-          alert("Architecture ID not found");
+          Alert.alert("Error", "Architecture ID not found");
           return;
         }
 
@@ -337,7 +431,7 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
 
         if (!architecture) {
           console.log("INVALID ARCHITECTURE RESPONSE:", JSON.stringify(data));
-          alert("Invalid architecture response");
+          Alert.alert("Error", "Invalid architecture response");
           return;
         }
 
@@ -347,7 +441,7 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
         }
       } catch (error) {
         console.log("UPDATE SCREEN LOAD ERROR:", error);
-        alert(error?.message || "Failed to load architecture");
+        Alert.alert("Error", error?.message || "Failed to load architecture");
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -363,7 +457,15 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
   }, [architectureId]);
 
   const saveCpuData = () => {
-    alert("CPU configuration saved");
+    Alert.alert("Saved");
+  };
+
+  const updateCounts = (flags = flagRegisterList, registers = registerList, instructionList = instructions) => {
+    setCpuData((prev) => ({
+      ...prev,
+      NumberOfRegisters: String(flags.length + registers.length),
+      NumberOfInstructions: String(instructionList.length),
+    }));
   };
 
   const saveCurrentFlagToList = () => {
@@ -383,27 +485,54 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
     }
 
     setFlagRegisterList(updated);
+    updateCounts(updated, registerList, instructions);
     return updated;
   };
 
   const nextFlagRegister = () => {
+    if (flagRegIndex >= flagRegisterList.length) {
+      if (flagRegister?.Name?.trim()) {
+        Alert.alert("Info", "New flag register Added");
+      } else if (flagRegisterList.length > 0) {
+        setFlagRegIndex(0);
+        setFlagRegister(flagRegisterList[0]);
+      }
+      return;
+    }
+
     const savedList = saveCurrentFlagToList();
 
     if (savedList.length === 0) return;
 
-    const next = (flagRegIndex + 1) % savedList.length;
+    if (flagRegIndex === savedList.length - 1) {
+      showAllDataFetchedAlert("flag register", () => {
+        setFlagRegIndex(0);
+        setFlagRegister(savedList[0]);
+      });
+      return;
+    }
+
+    const next = flagRegIndex + 1;
     setFlagRegIndex(next);
     setFlagRegister(savedList[next]);
   };
 
   const addFlagRegister = () => {
-    if (!flagRegister?.Name?.trim()) return;
+    if (!flagRegister?.Name?.trim()) {
+      Alert.alert("Validation", "Please enter flag register name first.");
+      return;
+    }
 
     const savedList = saveCurrentFlagToList();
 
-    setFlagRegisterList(savedList);
     setFlagRegister(emptyRegister);
     setFlagRegIndex(savedList.length);
+    Alert.alert("Saved");
+  };
+
+  const openNewFlagRegister = () => {
+    setFlagRegister(emptyRegister);
+    setFlagRegIndex(flagRegisterList.length);
   };
 
   const saveCurrentRegisterToList = () => {
@@ -423,27 +552,54 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
     }
 
     setRegisterList(updated);
+    updateCounts(flagRegisterList, updated, instructions);
     return updated;
   };
 
   const nextRegister = () => {
+    if (regIndex >= registerList.length) {
+      if (currentRegister?.Name?.trim()) {
+        Alert.alert("Info", "New register Added");
+      } else if (registerList.length > 0) {
+        setRegIndex(0);
+        setCurrentRegister(registerList[0]);
+      }
+      return;
+    }
+
     const savedList = saveCurrentRegisterToList();
 
     if (savedList.length === 0) return;
 
-    const next = (regIndex + 1) % savedList.length;
+    if (regIndex === savedList.length - 1) {
+      showAllDataFetchedAlert("general purpose register", () => {
+        setRegIndex(0);
+        setCurrentRegister(savedList[0]);
+      });
+      return;
+    }
+
+    const next = regIndex + 1;
     setRegIndex(next);
     setCurrentRegister(savedList[next]);
   };
 
   const addRegister = () => {
-    if (!currentRegister?.Name?.trim()) return;
+    if (!currentRegister?.Name?.trim()) {
+      Alert.alert("Validation", "Please enter register name first.");
+      return;
+    }
 
     const savedList = saveCurrentRegisterToList();
 
-    setRegisterList(savedList);
     setCurrentRegister(emptyRegister);
     setRegIndex(savedList.length);
+    Alert.alert("Saved");
+  };
+
+  const openNewRegister = () => {
+    setCurrentRegister(emptyRegister);
+    setRegIndex(registerList.length);
   };
 
   const saveCurrentAddressingToList = () => {
@@ -462,23 +618,49 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
   };
 
   const nextAddressing = () => {
+    if (addressingIndex >= addressingModes.length) {
+      if (currentAddressing?.AddressingModeName?.trim()) {
+        Alert.alert("Info", "New addressing mode Added");
+      } else if (addressingModes.length > 0) {
+        setAddressingIndex(0);
+        setCurrentAddressing(addressingModes[0]);
+      }
+      return;
+    }
+
     const savedList = saveCurrentAddressingToList();
 
     if (savedList.length === 0) return;
 
-    const next = (addressingIndex + 1) % savedList.length;
+    if (addressingIndex === savedList.length - 1) {
+      showAllDataFetchedAlert("addressing mode", () => {
+        setAddressingIndex(0);
+        setCurrentAddressing(savedList[0]);
+      });
+      return;
+    }
+
+    const next = addressingIndex + 1;
     setAddressingIndex(next);
     setCurrentAddressing(savedList[next]);
   };
 
   const addAddressing = () => {
-    if (!currentAddressing?.AddressingModeName?.trim()) return;
+    if (!currentAddressing?.AddressingModeName?.trim()) {
+      Alert.alert("Validation", "Please enter addressing mode name first.");
+      return;
+    }
 
     const savedList = saveCurrentAddressingToList();
 
-    setAddressingModes(savedList);
     setCurrentAddressing(emptyAddressing);
     setAddressingIndex(savedList.length);
+    Alert.alert("Saved");
+  };
+
+  const openNewAddressing = () => {
+    setCurrentAddressing(emptyAddressing);
+    setAddressingIndex(addressingModes.length);
   };
 
   const toggleInterruptInstruction = () => {
@@ -585,15 +767,40 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
     }
 
     setInstructions(updated);
+    updateCounts(flagRegisterList, registerList, updated);
     return updated;
   };
 
   const nextInstruction = () => {
+    if (instIndex >= instructions.length) {
+      if (currentInstruction?.Opcode?.trim()) {
+        // Alert.alert("Info", "The new instruction ko list mein save karne ke liye ADD press karein.");
+      } else if (instructions.length > 0) {
+        setInstIndex(0);
+        setCurrentInstruction({
+          ...instructions[0],
+          _openedDropdown: null,
+        });
+      }
+      return;
+    }
+
     const savedList = saveCurrentInstructionToList();
 
     if (savedList.length === 0) return;
 
-    const next = (instIndex + 1) % savedList.length;
+    if (instIndex === savedList.length - 1) {
+      showAllDataFetchedAlert("instruction", () => {
+        setInstIndex(0);
+        setCurrentInstruction({
+          ...savedList[0],
+          _openedDropdown: null,
+        });
+      });
+      return;
+    }
+
+    const next = instIndex + 1;
     setInstIndex(next);
     setCurrentInstruction({
       ...savedList[next],
@@ -602,17 +809,27 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
   };
 
   const addInstruction = () => {
-    if (!currentInstruction?.Opcode?.trim()) return;
+    if (!currentInstruction?.Opcode?.trim()) {
+      Alert.alert("Validation", "Please enter instruction opcode first.");
+      return;
+    }
 
     const savedList = saveCurrentInstructionToList();
 
-    setInstructions(savedList);
     setCurrentInstruction(emptyInstruction);
     setInstIndex(savedList.length);
+    Alert.alert("Saved", "Instruction Added.");
+  };
+
+  const openNewInstruction = () => {
+    setCurrentInstruction(emptyInstruction);
+    setInstIndex(instructions.length);
   };
 
   const handleFinalUpdate = async () => {
     try {
+      setSaving(true);
+
       const latestFlags = saveCurrentFlagToList();
       const latestRegisters = saveCurrentRegisterToList();
       const latestAddressingModes = saveCurrentAddressingToList();
@@ -693,14 +910,21 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
 
       await updateFullArchitecture(architectureId, payload);
 
-      alert("Architecture updated successfully!");
-
-      if (navigation?.goBack) {
-        navigation.goBack();
-      }
+      Alert.alert("Success", "Architecture Updated Successfully!", [
+        {
+          text: "OK",
+          onPress: () => {
+            if (navigation?.goBack) {
+              navigation.goBack();
+            }
+          },
+        },
+      ]);
     } catch (error) {
       console.log("FINAL UPDATE ERROR:", error);
-      alert(error?.message || "Update failed");
+      Alert.alert("Error", error?.message || "Update failed");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -722,12 +946,25 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-      nestedScrollEnabled
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
     >
+      <ScrollView
+        ref={scrollRef}
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+        keyboardShouldPersistTaps="handled"
+      >
+      <AllDataModal
+        visible={allDataModal.visible}
+        fieldName={allDataModal.fieldName}
+        onOk={closeAllDataModal}
+      />
+
       <View style={styles.headerRow}>
         <TouchableOpacity style={styles.backButton} onPress={handleBack}>
           <Text style={styles.backButtonText}>‹</Text>
@@ -739,8 +976,7 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>CPU Design Configuration</Text>
-        <View style={styles.divider} />
+        <CardHeader title="CPU Design Configuration" />
 
         <Text style={styles.label}>Architecture Name</Text>
         <TextInput
@@ -815,10 +1051,12 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Register Design Configuration</Text>
-        <View style={styles.divider} />
+        <CardHeader title="Register Design Configuration" />
 
-        <Text style={styles.sectionText}>Flag Register</Text>
+
+        {/* +(Plus Button to add new Falg Register) */}
+        <SectionHeader title="Flag Register" />
+        {/* <SectionHeader title="Flag Register" onPlusPress={openNewFlagRegister} /> */}
 
         <Text style={styles.label}>Flag Register Name</Text>
         <TextInput
@@ -855,8 +1093,10 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
         </View>
 
         <View style={styles.dividerLarge} />
+        <SectionHeader title="General Purpose Register" />
+        {/* +(Plus Button to add new General Purpose Register) */}
 
-        <Text style={styles.sectionText}>General Purpose Register</Text>
+        {/* <SectionHeader title="General Purpose Register" onPlusPress={openNewRegister} /> */}
 
         <Text style={styles.label}>GP Register Name</Text>
         <TextInput
@@ -881,7 +1121,9 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionText}>Addressing Modes</Text>
+        {/* +(Plus Button to add new Addressing Mode) */}
+        <SectionHeader title="Addressing Modes" />
+        {/* <CardHeader title="Addressing Modes" onPlusPress={openNewAddressing} /> */}
 
         <Text style={styles.label}>Addressing Mode</Text>
         <TextInput
@@ -937,8 +1179,10 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Instruction Design Configuration</Text>
-        <View style={styles.divider} />
+
+        {/* +(Plus Button to add new Instruction) */}
+        <CardHeader title="Instruction Design Configuration" />
+        {/* <CardHeader title="Instruction Design Configuration" onPlusPress={openNewInstruction} /> */}
 
         <TouchableOpacity
           style={styles.checkboxBox}
@@ -984,15 +1228,16 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
         {currentInstruction.isInterrupt ? (
           <View style={styles.innerCard}>
             <Text style={styles.label}>Interrupt Symbol</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter Symbol"
-              placeholderTextColor="#8A9AB0"
-              value={currentInstruction.InterruptSymbol || ""}
-              onChangeText={(text) =>
+            <CustomDropdown
+              placeholder="Select Symbol"
+              value={currentInstruction.InterruptSymbol}
+              options={interruptSymbolOptions}
+              open={openedDropdown === "interruptSymbol"}
+              onToggle={() => toggleDropdown("interruptSymbol")}
+              onSelect={(value) =>
                 setCurrentInstruction({
                   ...currentInstruction,
-                  InterruptSymbol: text,
+                  InterruptSymbol: value,
                   _openedDropdown: null,
                 })
               }
@@ -1096,6 +1341,7 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
           value={currentInstruction.Action || ""}
           multiline
           textAlignVertical="top"
+          onFocus={scrollToBottom}
           onChangeText={(text) =>
             setCurrentInstruction({ ...currentInstruction, Action: text })
           }
@@ -1112,10 +1358,17 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.updateButton} onPress={handleFinalUpdate}>
-        <Text style={styles.updateButtonText}>Update Architecture</Text>
+      <TouchableOpacity
+        style={[styles.updateButton, saving && styles.disabledButton]}
+        onPress={handleFinalUpdate}
+        disabled={saving}
+      >
+        <Text style={styles.updateButtonText}>
+          {saving ? "Updating..." : "Update Architecture"}
+        </Text>
       </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -1131,7 +1384,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 10,
-    paddingBottom: 25,
+    paddingBottom: 160,
   },
   loader: {
     flex: 1,
@@ -1183,10 +1436,55 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  cardTitleRow: {
+    minHeight: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
   cardTitle: {
     fontSize: 15,
     fontWeight: "700",
     color: "#1E3A8A",
+    textAlign: "center",
+  },
+  cardPlusButton: {
+    position: "absolute",
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#233F99",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cardPlusText: {
+    color: "#FFFFFF",
+    fontSize: 22,
+    fontWeight: "700",
+    lineHeight: 24,
+  },
+  sectionHeaderRow: {
+    minHeight: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  sectionPlusButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#233F99",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sectionPlusText: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "700",
+    lineHeight: 22,
   },
   divider: {
     height: 1,
@@ -1202,9 +1500,8 @@ const styles = StyleSheet.create({
   },
   sectionText: {
     fontSize: 13,
-    fontWeight: "500",
+    fontWeight: "600",
     color: "#111827",
-    marginBottom: 8,
   },
   label: {
     fontSize: 12,
@@ -1375,6 +1672,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
+  disabledButton: {
+    backgroundColor: "#9CA3AF",
+  },
   dropdownWrapper: {
     position: "relative",
     marginBottom: 4,
@@ -1439,5 +1739,43 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 2000,
     elevation: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  alertBox: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    padding: 20,
+    elevation: 10,
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1E3A8A",
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  alertMessage: {
+    fontSize: 14,
+    color: "#111827",
+    textAlign: "center",
+    marginBottom: 18,
+  },
+  alertButton: {
+    height: 38,
+    backgroundColor: "#233F99",
+    borderRadius: 4,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  alertButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
 });

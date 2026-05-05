@@ -11,6 +11,187 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { getArchitectureDetails } from "../api/detailApi";
 
 /* =======================
+   DEFAULT FLAG REGISTERS
+   Agar user flag create na kare
+======================= */
+const DEFAULT_FLAG_REGISTERS = [
+  { name: "Zero" },
+  { name: "Carry" },
+  { name: "Sign" },
+  { name: "Overflow" },
+];
+
+/* =======================
+   FLAG HELPERS
+======================= */
+const normalizeFlagValue = (value) => {
+  if (value === true) return 1;
+  if (value === false) return 0;
+  return value ?? 0;
+};
+
+const getFlagName = (flag, index) => {
+  return (
+    flag?.name ||
+    flag?.Name ||
+    flag?.FlagName ||
+    flag?.flagName ||
+    flag?.FlagRegisterName ||
+    flag?.flagRegisterName ||
+    flag?.RegisterName ||
+    flag?.registerName ||
+    DEFAULT_FLAG_REGISTERS[index]?.name ||
+    `Flag ${index + 1}`
+  );
+};
+
+/*
+  Backend updated flag order:
+  Flags[0] = Carry
+  Flags[1] = Overflow
+  Flags[2] = Sign
+  Flags[3] = Zero
+
+  Display logic:
+  - User custom flags hon to custom flags show honge.
+  - User flags na hon to default flags show honge.
+*/
+const getBackendFlagValues = (apiFlags = []) => {
+  let zero = 0;
+  let carry = 0;
+  let sign = 0;
+  let overflow = 0;
+
+  if (Array.isArray(apiFlags)) {
+    carry = normalizeFlagValue(apiFlags[0]);
+    overflow = normalizeFlagValue(apiFlags[1]);
+    sign = normalizeFlagValue(apiFlags[2]);
+    zero = normalizeFlagValue(apiFlags[3]);
+  } else if (apiFlags && typeof apiFlags === "object") {
+    carry = normalizeFlagValue(
+      apiFlags.Carry ??
+        apiFlags.carry ??
+        apiFlags.C ??
+        apiFlags.c ??
+        apiFlags.CF ??
+        apiFlags.cf ??
+        apiFlags["0"] ??
+        0
+    );
+
+    overflow = normalizeFlagValue(
+      apiFlags.Overflow ??
+        apiFlags.overflow ??
+        apiFlags.O ??
+        apiFlags.o ??
+        apiFlags.OF ??
+        apiFlags.of ??
+        apiFlags["1"] ??
+        0
+    );
+
+    sign = normalizeFlagValue(
+      apiFlags.Sign ??
+        apiFlags.sign ??
+        apiFlags.Negative ??
+        apiFlags.negative ??
+        apiFlags.S ??
+        apiFlags.s ??
+        apiFlags.SF ??
+        apiFlags.sf ??
+        apiFlags.N ??
+        apiFlags.n ??
+        apiFlags["2"] ??
+        0
+    );
+
+    zero = normalizeFlagValue(
+      apiFlags.Zero ??
+        apiFlags.zero ??
+        apiFlags.Z ??
+        apiFlags.z ??
+        apiFlags.ZF ??
+        apiFlags.zf ??
+        apiFlags["3"] ??
+        0
+    );
+  }
+
+  return {
+    zero,
+    carry,
+    sign,
+    overflow,
+  };
+};
+
+const getMappedFlagValueByName = (flagName, backendValues, apiFlags, index) => {
+  const lowerName = String(flagName || "").toLowerCase();
+
+  if (
+    lowerName.includes("zero") ||
+    lowerName === "z" ||
+    lowerName === "zf"
+  ) {
+    return backendValues.zero;
+  }
+
+  if (
+    lowerName.includes("carry") ||
+    lowerName === "c" ||
+    lowerName === "cf"
+  ) {
+    return backendValues.carry;
+  }
+
+  if (
+    lowerName.includes("sign") ||
+    lowerName.includes("negative") ||
+    lowerName === "s" ||
+    lowerName === "sf" ||
+    lowerName === "n"
+  ) {
+    return backendValues.sign;
+  }
+
+  if (
+    lowerName.includes("overflow") ||
+    lowerName === "o" ||
+    lowerName === "of"
+  ) {
+    return backendValues.overflow;
+  }
+
+  // Agar user custom unknown flag name rakhe,
+  // to fallback ke liye backend array ka same index use kar lo.
+  if (Array.isArray(apiFlags)) {
+    return normalizeFlagValue(apiFlags[index]);
+  }
+
+  return 0;
+};
+
+const buildDisplayFlags = (userFlagRegisters = [], apiFlags = []) => {
+  const hasUserFlags =
+    Array.isArray(userFlagRegisters) && userFlagRegisters.length > 0;
+
+  const flagsSource = hasUserFlags
+    ? userFlagRegisters
+    : DEFAULT_FLAG_REGISTERS;
+
+  const backendValues = getBackendFlagValues(apiFlags);
+
+  return flagsSource.map((flag, index) => {
+    const flagName = getFlagName(flag, index);
+
+    return {
+      label: flagName,
+      value: getMappedFlagValueByName(flagName, backendValues, apiFlags, index),
+    };
+  });
+};
+
+/* =======================
    REUSABLE REGISTER BOX
 ======================= */
 const RegisterBox = ({ label, value }) => {
@@ -18,7 +199,14 @@ const RegisterBox = ({ label, value }) => {
     <View style={styles.boxContainer}>
       <Text style={styles.label}>{label}</Text>
       <View style={styles.box}>
-        <Text style={styles.value}>{value ?? 0}</Text>
+        <Text
+          style={styles.value}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.45}
+        >
+          {value ?? 0}
+        </Text>
       </View>
     </View>
   );
@@ -31,7 +219,6 @@ const RegisterVisualization = () => {
   const navigation = useNavigation();
   const route = useRoute();
 
-  // ✅ SAFE FALLBACK
   const executionResult = route.params?.executionResult || {
     registers: [],
     flags: [],
@@ -51,19 +238,11 @@ const RegisterVisualization = () => {
   const [flagRegisters, setFlagRegisters] = useState([]);
 
   const registersArray =
-    executionResult.registers ||
-    executionResult.Registers ||
-    [];
+    executionResult.registers || executionResult.Registers || [];
 
-  const flagsArray =
-    executionResult.flags ||
-    executionResult.Flags ||
-    [];
+  const flagsArray = executionResult.flags || executionResult.Flags || [];
 
-  const errors =
-    executionResult.errors ||
-    executionResult.Errors ||
-    [];
+  const errors = executionResult.errors || executionResult.Errors || [];
 
   useEffect(() => {
     fetchArchitectureDetailsForNames();
@@ -75,12 +254,12 @@ const RegisterVisualization = () => {
 
       const data = await getArchitectureDetails(architectureId);
 
-      setGeneralRegisters(data.generalRegisters || []);
-      setFlagRegisters(data.flagRegisters || []);
+      setGeneralRegisters(data?.generalRegisters || []);
+      setFlagRegisters(data?.flagRegisters || []);
 
       console.log("REGISTER VISUALIZATION DETAILS:", {
-        generalRegisters: data.generalRegisters || [],
-        flagRegisters: data.flagRegisters || [],
+        generalRegisters: data?.generalRegisters || [],
+        flagRegisters: data?.flagRegisters || [],
       });
     } catch (err) {
       console.log("Register Visualization Details Fetch Error:", err);
@@ -97,63 +276,53 @@ const RegisterVisualization = () => {
     Array.isArray(generalRegisters) && generalRegisters.length > 0
       ? generalRegisters
       : Array.isArray(routeRegisters) && routeRegisters.length > 0
-        ? routeRegisters
-        : architecture?.Registers ||
-          architecture?.registers ||
-          architecture?.ArchitectureRegisters ||
-          architecture?.architectureRegisters ||
-          [];
+      ? routeRegisters
+      : architecture?.generalRegisters ||
+        architecture?.GeneralRegisters ||
+        architecture?.Registers ||
+        architecture?.registers ||
+        architecture?.ArchitectureRegisters ||
+        architecture?.architectureRegisters ||
+        [];
 
   const dbFlags =
     Array.isArray(flagRegisters) && flagRegisters.length > 0
       ? flagRegisters
       : Array.isArray(routeFlags) && routeFlags.length > 0
-        ? routeFlags
-        : architecture?.flagRegisters ||
-          architecture?.FlagRegisters ||
-          architecture?.Flags ||
-          architecture?.flags ||
-          architecture?.ArchitectureFlags ||
-          architecture?.architectureFlags ||
-          architecture?.ArchitectureFlagRegisters ||
-          architecture?.architectureFlagRegisters ||
-          [];
+      ? routeFlags
+      : architecture?.flagRegisters ||
+        architecture?.FlagRegisters ||
+        architecture?.Flags ||
+        architecture?.flags ||
+        architecture?.ArchitectureFlags ||
+        architecture?.architectureFlags ||
+        architecture?.ArchitectureFlagRegisters ||
+        architecture?.architectureFlagRegisters ||
+        [];
 
-  const dynamicRegisters = Array.isArray(dbRegisters) && dbRegisters.length > 0
-    ? dbRegisters.map((reg, index) => ({
-        label:
-          reg?.name ||
-          reg?.Name ||
-          reg?.RegisterName ||
-          reg?.registerName ||
-          `R${index + 1}`,
-        value: registersArray[index] ?? 0,
-      }))
-    : registersArray.map((value, index) => ({
-        label: `R${index + 1}`,
-        value: value ?? 0,
-      }));
+  const dynamicRegisters =
+    Array.isArray(dbRegisters) && dbRegisters.length > 0
+      ? dbRegisters.map((reg, index) => ({
+          label:
+            reg?.name ||
+            reg?.Name ||
+            reg?.RegisterName ||
+            reg?.registerName ||
+            `R${index + 1}`,
+          value: registersArray[index] ?? 0,
+        }))
+      : registersArray.map((value, index) => ({
+          label: `R${index + 1}`,
+          value: value ?? 0,
+        }));
 
-  const dynamicFlags = Array.isArray(dbFlags) && dbFlags.length > 0
-    ? dbFlags.map((flag, index) => ({
-        label:
-          flag?.name ||
-          flag?.Name ||
-          flag?.FlagName ||
-          flag?.flagName ||
-          flag?.FlagRegisterName ||
-          flag?.flagRegisterName ||
-          flag?.RegisterName ||
-          flag?.registerName ||
-          `Flag ${index + 1}`,
-        value:
-          flagsArray[index] === true
-            ? 1
-            : flagsArray[index] === false
-              ? 0
-              : flagsArray[index] ?? 0,
-      }))
-    : [];
+  /*
+    Updated flags logic:
+    - User custom flags hon to custom flags show honge.
+    - User flags na hon to default flags show honge.
+    - Backend order: Carry, Overflow, Sign, Zero.
+  */
+  const dynamicFlags = buildDisplayFlags(dbFlags, flagsArray);
 
   const chunkArray = (array, size) => {
     const chunks = [];
@@ -167,7 +336,6 @@ const RegisterVisualization = () => {
 
   return (
     <ScrollView style={styles.container}>
-
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -201,12 +369,14 @@ const RegisterVisualization = () => {
               ))}
 
               {rowItems.length < 4 &&
-                Array.from({ length: 4 - rowItems.length }).map((_, emptyIndex) => (
-                  <View
-                    key={`empty-register-${rowIndex}-${emptyIndex}`}
-                    style={styles.boxContainer}
-                  />
-                ))}
+                Array.from({ length: 4 - rowItems.length }).map(
+                  (_, emptyIndex) => (
+                    <View
+                      key={`empty-register-${rowIndex}-${emptyIndex}`}
+                      style={styles.boxContainer}
+                    />
+                  )
+                )}
             </View>
           ))
         ) : (
@@ -230,12 +400,14 @@ const RegisterVisualization = () => {
               ))}
 
               {rowItems.length < 4 &&
-                Array.from({ length: 4 - rowItems.length }).map((_, emptyIndex) => (
-                  <View
-                    key={`empty-flag-${rowIndex}-${emptyIndex}`}
-                    style={styles.boxContainer}
-                  />
-                ))}
+                Array.from({ length: 4 - rowItems.length }).map(
+                  (_, emptyIndex) => (
+                    <View
+                      key={`empty-flag-${rowIndex}-${emptyIndex}`}
+                      style={styles.boxContainer}
+                    />
+                  )
+                )}
             </View>
           ))
         ) : (
@@ -248,12 +420,11 @@ const RegisterVisualization = () => {
 
       <View style={styles.outputBox}>
         <Text style={styles.outputText}>
-          {errors.length > 0
+          {Array.isArray(errors) && errors.length > 0
             ? errors.join("\n")
             : `Result: ${registersArray[0] ?? 0}`}
         </Text>
       </View>
-
     </ScrollView>
   );
 };
@@ -312,6 +483,7 @@ const styles = StyleSheet.create({
   },
   box: {
     width: "100%",
+    minWidth: 64,
     height: 40,
     borderWidth: 1,
     borderColor: "#C7D2FE",
@@ -319,11 +491,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
+    paddingHorizontal: 4,
   },
   value: {
     fontSize: 16,
     fontWeight: "500",
     color: "#000",
+    textAlign: "center",
+    width: "100%",
   },
   outputBox: {
     backgroundColor: "white",

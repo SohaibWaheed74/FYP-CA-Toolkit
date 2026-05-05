@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useRef } from "react";
 import {
   View,
   Text,
@@ -9,8 +9,12 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import Ionicons from "react-native-vector-icons/Ionicons";
+
 import { ArchitectureContext } from "../context/ArchitectureContext";
 import { executeProgram } from "../api/executionApi";
 import { saveCodeFile, getCodeFiles, getCodeFileById } from "../api/codefile";
@@ -18,12 +22,21 @@ import { saveCodeFile, getCodeFiles, getCodeFileById } from "../api/codefile";
 const EditorScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
+  const scrollRef = useRef(null);
 
-  const { selectedArchitecture: contextArchitecture } =
-    useContext(ArchitectureContext);
+  const {
+    selectedArchitecture: contextArchitecture,
+    updateMemoryFromExecutionResult,
+  } = useContext(ArchitectureContext);
 
   const selectedArchitecture =
     route?.params?.architecture || contextArchitecture;
+
+  const architectureId =
+    selectedArchitecture?.ArchitectureID ||
+    selectedArchitecture?.architectureID ||
+    selectedArchitecture?.architectureId ||
+    selectedArchitecture?.id;
 
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -34,8 +47,17 @@ const EditorScreen = () => {
   const [fileNameInput, setFileNameInput] = useState("");
   const [cycles, setCycles] = useState(null);
 
+  const scrollToEditor = () => {
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({
+        y: 120,
+        animated: true,
+      });
+    }, 300);
+  };
+
   // =========================
-  // RUN PROGRAM (FIXED)
+  // RUN PROGRAM + MEMORY UPDATE
   // =========================
   const handleRun = async () => {
     if (!code.trim()) {
@@ -43,7 +65,7 @@ const EditorScreen = () => {
       return;
     }
 
-    if (!selectedArchitecture?.ArchitectureID) {
+    if (!architectureId) {
       Alert.alert("Error", "No architecture selected.");
       return;
     }
@@ -54,13 +76,12 @@ const EditorScreen = () => {
 
       const programLines = code
         .split("\n")
-        .map(line => line.trim())
-        .filter(line => line.length > 0);
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
 
-      const result = await executeProgram(
-        selectedArchitecture.ArchitectureID,
-        programLines
-      );
+      const result = await executeProgram(architectureId, programLines);
+
+      updateMemoryFromExecutionResult(result);
 
       const executionResult = {
         registers: result?.Registers || [],
@@ -72,13 +93,15 @@ const EditorScreen = () => {
       };
 
       const registerVisualizationParams = {
-        architectureId: selectedArchitecture.ArchitectureID,
+        architectureId: architectureId,
         architecture: selectedArchitecture,
-        executionResult: executionResult,
+        executionResult,
 
         registers:
           selectedArchitecture?.Registers ||
           selectedArchitecture?.registers ||
+          selectedArchitecture?.GeneralRegisters ||
+          selectedArchitecture?.generalRegisters ||
           selectedArchitecture?.ArchitectureRegisters ||
           selectedArchitecture?.architectureRegisters ||
           [],
@@ -95,19 +118,25 @@ const EditorScreen = () => {
           [],
       };
 
-      console.log("PASSING TO REGISTER VISUALIZATION:", registerVisualizationParams);
+      console.log(
+        "PASSING TO REGISTER VISUALIZATION:",
+        registerVisualizationParams
+      );
 
-      navigation.getParent()?.navigate("RegistersVizTab", registerVisualizationParams);
-
+      navigation
+        .getParent()
+        ?.navigate("RegistersVizTab", registerVisualizationParams);
     } catch (err) {
       console.log("ERROR:", err);
 
       const message =
         err?.response?.data?.message ||
         err?.message ||
+        err?.toString() ||
         "Execution failed";
 
       setError(message);
+      Alert.alert("Execution Error", message);
     } finally {
       setIsRunning(false);
     }
@@ -118,7 +147,7 @@ const EditorScreen = () => {
   // =========================
   const handleCompare = () => {
     navigation.navigate("Compare", {
-      architectureId: selectedArchitecture?.ArchitectureID,
+      architectureId: architectureId,
       architecture: selectedArchitecture,
     });
   };
@@ -132,22 +161,24 @@ const EditorScreen = () => {
       return;
     }
 
-    if (!selectedArchitecture?.ArchitectureID) {
+    if (!architectureId) {
       Alert.alert("Error", "No architecture selected.");
       return;
     }
 
     const programLines = code
       .split("\n")
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
 
     const debuggingParams = {
-      architectureId: selectedArchitecture.ArchitectureID,
+      architectureId: architectureId,
       architecture: selectedArchitecture,
       registers:
         selectedArchitecture?.Registers ||
         selectedArchitecture?.registers ||
+        selectedArchitecture?.GeneralRegisters ||
+        selectedArchitecture?.generalRegisters ||
         selectedArchitecture?.ArchitectureRegisters ||
         selectedArchitecture?.architectureRegisters ||
         [],
@@ -158,6 +189,8 @@ const EditorScreen = () => {
         selectedArchitecture?.flagRegisters ||
         selectedArchitecture?.ArchitectureFlags ||
         selectedArchitecture?.architectureFlags ||
+        selectedArchitecture?.ArchitectureFlagRegisters ||
+        selectedArchitecture?.architectureFlagRegisters ||
         [],
       program: programLines,
     };
@@ -184,11 +217,12 @@ const EditorScreen = () => {
       return;
     }
 
-    if (!selectedArchitecture?.ArchitectureID) {
+    if (!architectureId) {
       Alert.alert("Error", "No architecture selected.");
       return;
     }
 
+    setFileNameInput("");
     setModalVisible(true);
   };
 
@@ -198,7 +232,7 @@ const EditorScreen = () => {
       return;
     }
 
-    if (!selectedArchitecture?.ArchitectureID) {
+    if (!architectureId) {
       Alert.alert("Error", "No architecture selected.");
       return;
     }
@@ -208,15 +242,11 @@ const EditorScreen = () => {
       : `${fileNameInput.trim()}.txt`;
 
     try {
-      console.log("ARCHITECTURE ID:", selectedArchitecture.ArchitectureID);
+      console.log("ARCHITECTURE ID:", architectureId);
       console.log("FILE NAME:", fileNameWithExt);
       console.log("CODE:", code);
 
-      await saveCodeFile(
-        selectedArchitecture.ArchitectureID,
-        fileNameWithExt,
-        code
-      );
+      await saveCodeFile(architectureId, fileNameWithExt, code);
 
       setModalVisible(false);
       setFileNameInput("");
@@ -237,16 +267,16 @@ const EditorScreen = () => {
 
     const programLines = code
       .split("\n")
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
 
     let totalCycles = 0;
 
-    programLines.forEach(line => {
+    programLines.forEach((line) => {
       const instructionName = line.split(" ")[0].toUpperCase();
 
       const instruction = selectedArchitecture?.Instructions?.find(
-        ins => ins.Mnemonics?.toUpperCase() === instructionName
+        (ins) => ins.Mnemonics?.toUpperCase() === instructionName
       );
 
       totalCycles += instruction ? (instruction.InstructionFormat ?? 0) + 1 : 1;
@@ -259,16 +289,19 @@ const EditorScreen = () => {
   // OPEN FILE FROM DATABASE
   // =========================
   const handleOpen = async () => {
-    if (!selectedArchitecture?.ArchitectureID) {
+    if (!architectureId) {
       Alert.alert("Error", "No architecture selected.");
       return;
     }
 
     try {
-      const files = await getCodeFiles(selectedArchitecture.ArchitectureID);
+      const files = await getCodeFiles(architectureId);
 
       if (!files || files.length === 0) {
-        Alert.alert("No Files", "No saved code files found for this architecture.");
+        Alert.alert(
+          "No Files",
+          "No saved code files found for this architecture."
+        );
         return;
       }
 
@@ -286,20 +319,35 @@ const EditorScreen = () => {
       setCode(file?.Code || file?.code || "");
       setOpenModalVisible(false);
 
-      Alert.alert("Success", `Loaded ${file?.FileName || file?.fileName || "file"}`);
+      Alert.alert(
+        "Success",
+        `Loaded ${file?.FileName || file?.fileName || "file"}`
+      );
     } catch (err) {
       Alert.alert("Error", err?.message || "Failed to open code file");
     }
   };
 
   return (
-    <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.wrapper}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+    >
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.wrapper}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.mainCard}>
-
           {/* TOOLBAR */}
           <View style={styles.toolbar}>
-            <TouchableOpacity style={styles.runBtn} onPress={handleRun}>
+            <TouchableOpacity
+              style={styles.runBtn}
+              onPress={handleRun}
+              disabled={isRunning}
+            >
               {isRunning ? (
                 <ActivityIndicator color="#fff" />
               ) : (
@@ -311,15 +359,30 @@ const EditorScreen = () => {
               <Text style={styles.primaryText}>Run Step</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.outlineBtn} onPress={handleSave}>
-              <Text style={styles.outlineText}>Save</Text>
+            {/* SAVE BUTTON BLUE */}
+            <TouchableOpacity style={styles.blueToolBtn} onPress={handleSave}>
+              <View style={styles.iconTextRow}>
+                <Ionicons name="save-outline" size={14} color="#FFFFFF" />
+                <Text style={styles.blueToolText}>Save</Text>
+              </View>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.outlineBtn} onPress={handleOpen}>
-              <Text style={styles.outlineText}>Open</Text>
+            {/* OPEN BUTTON BLUE */}
+            <TouchableOpacity style={styles.blueToolBtn} onPress={handleOpen}>
+              <View style={styles.iconTextRow}>
+                <Ionicons
+                  name="folder-open-outline"
+                  size={14}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.blueToolText}>Open</Text>
+              </View>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.primaryBtn} onPress={handleCycleCount}>
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={handleCycleCount}
+            >
               <Text style={styles.primaryText}>Count Cycles</Text>
             </TouchableOpacity>
           </View>
@@ -335,6 +398,9 @@ const EditorScreen = () => {
               value={code}
               onChangeText={setCode}
               multiline
+              scrollEnabled
+              textAlignVertical="top"
+              onFocus={scrollToEditor}
               placeholder="Write your assembly code..."
               placeholderTextColor="#A0AEC0"
               style={styles.editorInput}
@@ -343,10 +409,9 @@ const EditorScreen = () => {
 
           {/* ERROR */}
           <Text style={styles.errorTitle}>Error Display</Text>
+
           <View style={styles.errorBox}>
-            <Text style={styles.errorText}>
-              {error || "No Errors"}
-            </Text>
+            <Text style={styles.errorText}>{error || "No Errors"}</Text>
           </View>
 
           {/* CYCLES */}
@@ -358,7 +423,6 @@ const EditorScreen = () => {
               </Text>
             </View>
           )}
-
         </View>
       </ScrollView>
 
@@ -372,16 +436,23 @@ const EditorScreen = () => {
               value={fileNameInput}
               onChangeText={setFileNameInput}
               placeholder="example.txt"
+              placeholderTextColor="#8AA0C2"
               style={styles.modalInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+              selectionColor="#1F3C88"
             />
 
             <View style={styles.modalBtns}>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Text style={{ color: "red" }}>Cancel</Text>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={saveFile}>
-                <Text style={{ color: "green" }}>Save</Text>
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={saveFile}>
+                <Text style={styles.modalSaveText}>Save</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -409,38 +480,46 @@ const EditorScreen = () => {
             </ScrollView>
 
             <View style={styles.modalBtns}>
-              <TouchableOpacity onPress={() => setOpenModalVisible(false)}>
-                <Text style={{ color: "red" }}>Cancel</Text>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setOpenModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
 export default EditorScreen;
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#EEF2F9" },
+  screen: {
+    flex: 1,
+    backgroundColor: "#EEF2F9",
+  },
 
-  wrapper: { padding: 14 },
+  wrapper: {
+    padding: 14,
+    paddingBottom: 180,
+  },
 
   mainCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#E3E8F2"
+    borderColor: "#E3E8F2",
   },
 
   toolbar: {
     flexDirection: "row",
     flexWrap: "wrap",
     width: "100%",
-    marginBottom: 10
+    marginBottom: 10,
   },
 
   runBtn: {
@@ -449,7 +528,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 6,
     marginRight: 6,
-    marginBottom: 6
+    marginBottom: 6,
   },
 
   primaryBtn: {
@@ -459,17 +538,17 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     alignItems: "center",
     marginRight: 6,
-    marginBottom: 6
+    marginBottom: 6,
   },
 
   primaryText: {
     color: "#FFFFFF",
     fontSize: 12,
-    fontWeight: "600"
+    fontWeight: "600",
   },
 
-  outlineBtn: {
-    backgroundColor: "#FFFFFF",
+  blueToolBtn: {
+    backgroundColor: "#1F3C88",
     borderWidth: 1,
     borderColor: "#1F3C88",
     paddingVertical: 7,
@@ -477,13 +556,19 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     alignItems: "center",
     marginRight: 6,
-    marginBottom: 6
+    marginBottom: 6,
   },
 
-  outlineText: {
-    color: "#1F3C88",
+  blueToolText: {
+    color: "#FFFFFF",
     fontSize: 12,
-    fontWeight: "600"
+    fontWeight: "600",
+    marginLeft: 4,
+  },
+
+  iconTextRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
 
   compareButton: {
@@ -492,13 +577,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     marginVertical: 12,
-    elevation: 3
+    elevation: 3,
   },
 
   compareButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600"
+    fontWeight: "600",
   },
 
   editorBox: {
@@ -508,13 +593,15 @@ const styles = StyleSheet.create({
     minHeight: 360,
     borderWidth: 1,
     borderColor: "#E1E7F5",
-    marginBottom: 10
+    marginBottom: 10,
   },
 
   editorInput: {
     fontSize: 12,
     color: "#2C2F38",
-    lineHeight: 18
+    lineHeight: 18,
+    minHeight: 340,
+    textAlignVertical: "top",
   },
 
   errorTitle: {
@@ -522,7 +609,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#334155",
     marginBottom: 4,
-    marginTop: 2
+    marginTop: 2,
   },
 
   errorBox: {
@@ -531,12 +618,12 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: "#E1E7F5",
-    minHeight: 55
+    minHeight: 55,
   },
 
   errorText: {
     fontSize: 12,
-    color: "#64748B"
+    color: "#64748B",
   },
 
   cycleBox: {
@@ -546,69 +633,95 @@ const styles = StyleSheet.create({
     marginTop: 12,
     borderWidth: 1,
     borderColor: "#1F3C88",
-    alignItems: "center"
+    alignItems: "center",
   },
 
   cycleTitle: {
     fontSize: 14,
     fontWeight: "700",
     color: "#1F3C88",
-    marginBottom: 6
+    marginBottom: 6,
   },
 
   cycleText: {
     fontSize: 13,
     color: "#1F2937",
-    fontWeight: "500"
+    fontWeight: "500",
   },
 
   modalBackdrop: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)"
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
 
   modalContainer: {
     backgroundColor: "#fff",
     padding: 20,
     borderRadius: 10,
-    width: "80%"
+    width: "80%",
   },
 
   modalTitle: {
     marginBottom: 10,
     fontWeight: "600",
-    fontSize: 16
+    fontSize: 16,
+    color: "#111827",
   },
 
   modalInput: {
+    height: 42,
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 6,
-    padding: 8,
-    marginBottom: 20
+    borderColor: "#B9C7DC",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginBottom: 20,
+    backgroundColor: "#FFFFFF",
+    color: "#061F4F",
+    fontSize: 14,
   },
 
   modalBtns: {
     flexDirection: "row",
-    justifyContent: "space-between"
+    justifyContent: "space-between",
+    alignItems: "center",
   },
 
-  modalBtn: {
-    padding: 10
+  modalCancelBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    backgroundColor: "#FEE2E2",
+  },
+
+  modalCancelText: {
+    color: "#DC2626",
+    fontWeight: "700",
+  },
+
+  modalSaveBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 6,
+    backgroundColor: "#1F3C88",
+  },
+
+  modalSaveText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
 
   fileItem: {
     paddingVertical: 12,
     paddingHorizontal: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB"
+    borderBottomColor: "#E5E7EB",
   },
 
   fileNameText: {
     fontSize: 14,
     color: "#1F3C88",
-    fontWeight: "600"
-  }
+    fontWeight: "600",
+  },
 });

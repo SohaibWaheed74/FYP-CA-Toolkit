@@ -34,14 +34,16 @@ export default function InstructionDesign() {
 
   const {
     cpuData,
+    registers: passedRegisters = [],
     flagRegisters = [],
     gpRegisters = [],
     addressingList = [],
   } = route.params || {};
 
-  const registers = (gpRegisters || []).map(r => ({
-    label: r,
-    value: r,
+  // Sirf GP registers interrupt input/output dropdown me show honge
+  const registerOptions = (gpRegisters || []).map((r) => ({
+    label: typeof r === "string" ? r : r.Name ?? r.name,
+    value: typeof r === "string" ? r : r.Name ?? r.name,
   }));
 
   const [opcode, setOpcode] = useState("");
@@ -72,31 +74,74 @@ export default function InstructionDesign() {
     }
   }, [inputRegister, outputRegister]);
 
-  const inputRegisterOptions = registers.filter(
-    r => r.value !== outputRegister
+  const inputRegisterOptions = registerOptions.filter(
+    (r) => r.value !== outputRegister
   );
 
-  const outputRegisterOptions = registers.filter(
-    r => r.value !== inputRegister
+  const outputRegisterOptions = registerOptions.filter(
+    (r) => r.value !== inputRegister
   );
+
+  // ================= REGISTER PAYLOAD FIX =================
+  const getBooleanFlag = (value) => {
+    return (
+      value === true ||
+      value === 1 ||
+      value === "1" ||
+      value === "true" ||
+      value === "True"
+    );
+  };
+
+  const buildRegisterPayload = () => {
+    // New flow: RegisterDesign se combined registers array aa rahi hai
+    if (passedRegisters && passedRegisters.length > 0) {
+      return passedRegisters.map((reg) => {
+        const isFlag = getBooleanFlag(
+          reg.IsFlagRegister ?? reg.isFlagRegister
+        );
+
+        return {
+          Name: reg.Name ?? reg.name ?? "",
+          Action: isFlag ? reg.Action ?? reg.action ?? "" : "",
+          IsFlagRegister: isFlag,
+        };
+      });
+    }
+
+    // Old fallback: agar separate arrays aa rahi hon
+    const gpPayload = (gpRegisters || []).map((gp) => ({
+      Name: typeof gp === "string" ? gp : gp.Name ?? gp.name ?? "",
+      Action: "",
+      IsFlagRegister: false,
+    }));
+
+    const flagPayload = (flagRegisters || []).map((flag) => ({
+      Name: flag.Name ?? flag.name ?? "",
+      Action: flag.Action ?? flag.action ?? "",
+      IsFlagRegister: true,
+    }));
+
+    return [...gpPayload, ...flagPayload];
+  };
 
   const addOperand = () => {
-    setOperands(prev => {
+    setOperands((prev) => {
       const newOp = {
         id: operandCounter,
         type: 0,
         isDestination: false,
       };
 
-      setOperandCounter(prevCount => prevCount + 1);
+      setOperandCounter((prevCount) => prevCount + 1);
 
       return [...prev, newOp];
     });
   };
 
   const updateOperandType = (id, type) => {
-    setOperands(prev => {
-      let updated = prev.map(op =>
+    setOperands((prev) => {
+      let updated = prev.map((op) =>
         op.id === id
           ? {
               ...op,
@@ -106,8 +151,8 @@ export default function InstructionDesign() {
           : op
       );
 
-      if (!updated.some(op => op.isDestination)) {
-        const firstValidIndex = updated.findIndex(op => op.type !== 1);
+      if (!updated.some((op) => op.isDestination)) {
+        const firstValidIndex = updated.findIndex((op) => op.type !== 1);
 
         if (firstValidIndex !== -1) {
           updated[firstValidIndex] = {
@@ -121,29 +166,29 @@ export default function InstructionDesign() {
     });
   };
 
-  const selectDestination = id => {
-    const selected = operands.find(op => op.id === id);
+  const selectDestination = (id) => {
+    const selected = operands.find((op) => op.id === id);
 
     if (selected?.type === 1) {
       Alert.alert("Invalid", "Immediate value cannot be destination");
       return;
     }
 
-    setOperands(prev =>
-      prev.map(op => ({
+    setOperands((prev) =>
+      prev.map((op) => ({
         ...op,
         isDestination: op.id === id,
       }))
     );
   };
 
-  const deleteOperand = id => {
+  const deleteOperand = (id) => {
     if (operands.length === 1) return;
 
-    const updated = operands.filter(op => op.id !== id);
+    const updated = operands.filter((op) => op.id !== id);
 
-    if (!updated.some(op => op.isDestination)) {
-      const firstValidIndex = updated.findIndex(op => op.type !== 1);
+    if (!updated.some((op) => op.isDestination)) {
+      const firstValidIndex = updated.findIndex((op) => op.type !== 1);
 
       if (firstValidIndex !== -1) {
         updated[firstValidIndex] = {
@@ -203,18 +248,18 @@ export default function InstructionDesign() {
     let operandsData = [];
 
     if (!isInterrupt) {
-      operandsData = operands.map(op => ({
+      operandsData = operands.map((op) => ({
         type: op.type,
         isDestination: op.isDestination,
       }));
     }
 
     let firstDestinationIndex = operandsData.findIndex(
-      op => op.isDestination
+      (op) => op.isDestination
     );
 
     if (firstDestinationIndex === -1 && operandsData.length > 0) {
-      firstDestinationIndex = operandsData.findIndex(op => op.type !== 1);
+      firstDestinationIndex = operandsData.findIndex((op) => op.type !== 1);
     }
 
     if (firstDestinationIndex === -1 && operandsData.length > 0) {
@@ -234,7 +279,7 @@ export default function InstructionDesign() {
 
     const instructionFormat = isInterrupt
       ? 3
-      : parseInt(operandsData.map(op => op.type).join("")) || 0;
+      : parseInt(operandsData.map((op) => op.type).join("")) || 0;
 
     const numberOfOperands = isInterrupt ? 0 : operandsData.length;
 
@@ -262,7 +307,7 @@ export default function InstructionDesign() {
       operands: operandsData,
     };
 
-    setInstructions(prev => [...prev, instruction]);
+    setInstructions((prev) => [...prev, instruction]);
 
     setOpcode("");
     setMnemonics("");
@@ -282,11 +327,13 @@ export default function InstructionDesign() {
         return;
       }
 
-      const normalizedAddressingModes = (addressingList || []).map(mode => ({
+      const normalizedAddressingModes = (addressingList || []).map((mode) => ({
         AddressingModeName: mode.mode,
         AddressingModeCode: mode.code,
         AddressingModeSymbol: mode.symbol ?? null,
       }));
+
+      const normalizedRegisters = buildRegisterPayload();
 
       const fullData = {
         architecture: {
@@ -297,19 +344,14 @@ export default function InstructionDesign() {
           numberOfRegisters: parseInt(cpuData.registerCount) || 0,
           numberOfInstructions: parseInt(cpuData.instructionCount) || 0,
         },
-        registers: [
-          ...(gpRegisters || []).map(r => ({
-            name: r,
-            action: "",
-          })),
-          ...(flagRegisters || []).map(f => ({
-            name: f.name,
-            action: f.action ?? "",
-          })),
-        ],
+
+        registers: normalizedRegisters,
+
         instructions,
         addressingModes: normalizedAddressingModes,
       };
+
+      console.log("FINAL CREATE PAYLOAD:", JSON.stringify(fullData, null, 2));
 
       const result = await createFullArchitecture(fullData);
 
@@ -399,7 +441,7 @@ export default function InstructionDesign() {
             <>
               <View style={styles.headerRow}>
                 <Text style={styles.label}>Operands</Text>
-                <Text style={styles.label}>Destination</Text>
+                <Text style={styles.destinationHeading}>Destination</Text>
               </View>
 
               {operands.map((op, index) => (
@@ -412,9 +454,7 @@ export default function InstructionDesign() {
                     labelField="label"
                     valueField="value"
                     value={op.type}
-                    onChange={item =>
-                      updateOperandType(op.id, item.value)
-                    }
+                    onChange={(item) => updateOperandType(op.id, item.value)}
                   />
 
                   <TouchableOpacity
@@ -451,7 +491,7 @@ export default function InstructionDesign() {
                 labelField="label"
                 valueField="value"
                 value={interruptSymbol}
-                onChange={item => setInterruptSymbol(item.value)}
+                onChange={(item) => setInterruptSymbol(item.value)}
               />
 
               <Text style={styles.label}>Input Register</Text>
@@ -462,7 +502,7 @@ export default function InstructionDesign() {
                 labelField="label"
                 valueField="value"
                 value={inputRegister}
-                onChange={item => setInputRegister(item.value)}
+                onChange={(item) => setInputRegister(item.value)}
               />
 
               <Text style={styles.label}>Output Register</Text>
@@ -473,7 +513,7 @@ export default function InstructionDesign() {
                 labelField="label"
                 valueField="value"
                 value={outputRegister}
-                onChange={item => setOutputRegister(item.value)}
+                onChange={(item) => setOutputRegister(item.value)}
               />
             </>
           )}
@@ -511,7 +551,7 @@ export default function InstructionDesign() {
                 <Text>
                   Operands:{" "}
                   {instr.operands
-                    .map(op => `${op.type}${op.isDestination ? "(D)" : ""}`)
+                    .map((op) => `${op.type}${op.isDestination ? "(D)" : ""}`)
                     .join(", ")}
                 </Text>
               )}
@@ -602,13 +642,20 @@ const styles = StyleSheet.create({
   },
 
   dropdown: {
-    width: 130,
+    width: 110,
     height: 40,
     borderWidth: 1,
     borderColor: "#ccc",
     marginHorizontal: 6,
     paddingHorizontal: 8,
   },
+  destinationHeading: {
+  marginTop: 12,
+  marginBottom: 5,
+  marginLeft: 100,
+  fontWeight: "bold",
+  color: "#000",
+},
 
   dropdownFull: {
     height: 42,
