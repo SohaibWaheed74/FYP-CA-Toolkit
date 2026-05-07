@@ -5,28 +5,36 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  StatusBar,
   ScrollView,
   TouchableWithoutFeedback,
   Keyboard,
-  ActivityIndicator,
-  Alert,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 
-import { loginUser } from "../api/authApi";
+import { forgotPassword } from "../api/authApi";
 
-const Login = ({ navigation, onLogin }) => {
+const ForgotPassword = ({ navigation }) => {
   const [formState, setFormState] = useState({
     email: "",
-    password: "",
-    showPassword: false,
+    newPassword: "",
+    confirmPassword: "",
+    showNewPassword: false,
+    showConfirmPassword: false,
     loading: false,
   });
 
-  const { email, password, showPassword, loading } = formState;
+  const {
+    email,
+    newPassword,
+    confirmPassword,
+    showNewPassword,
+    showConfirmPassword,
+    loading,
+  } = formState;
 
   const updateFormState = (newState) => {
     setFormState((prev) => ({
@@ -35,24 +43,33 @@ const Login = ({ navigation, onLogin }) => {
     }));
   };
 
-  const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert("Error", "Please enter email and password");
+  const handleResetPassword = async () => {
+    if (!email.trim() || !newPassword.trim() || !confirmPassword.trim()) {
+      Alert.alert("Error", "Please fill all fields");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match");
       return;
     }
 
     try {
       updateFormState({ loading: true });
 
-      const data = await loginUser(email.trim(), password.trim());
+      const data = await forgotPassword(email.trim(), newPassword.trim());
 
-      console.log("LOGIN RESPONSE:", data);
-
-      if (onLogin) {
-        onLogin(data.user);
-      }
+      Alert.alert("Success", data?.message || "Password updated successfully", [
+        {
+          text: "OK",
+          onPress: () => navigation.navigate("Login"),
+        },
+      ]);
     } catch (error) {
-      Alert.alert("Login Failed", error?.message || "Invalid email or password");
+      Alert.alert(
+        "Error",
+        error?.message || "Failed to update password"
+      );
     } finally {
       updateFormState({ loading: false });
     }
@@ -64,8 +81,6 @@ const Login = ({ navigation, onLogin }) => {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
     >
-      <StatusBar backgroundColor="#F3F6FA" barStyle="dark-content" />
-
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -73,36 +88,19 @@ const Login = ({ navigation, onLogin }) => {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.content}>
-            {/* Top Icon */}
             <View style={styles.logoBox}>
-              <Ionicons
-                name="hardware-chip-outline"
-                size={31}
-                color="#FFFFFF"
-              />
+              <Ionicons name="key-outline" size={32} color="#FFFFFF" />
             </View>
 
-            {/* App Title */}
-            <Text style={styles.appTitle}>Computer Architecture Tool Kit</Text>
-
+            <Text style={styles.appTitle}>Forgot Password</Text>
             <Text style={styles.subtitle}>
-              Learn computer architecture concepts interactively
+              Enter your email and set a new password
             </Text>
 
-            {/* Login Card */}
             <View style={styles.card}>
-              <Text style={styles.heading}>Welcome Back</Text>
-
-              <Text style={styles.description}>
-                Sign in to continue your learning journey
-              </Text>
-
-              {/* Email */}
               <Text style={styles.label}>Email Address</Text>
-
               <View style={styles.inputContainer}>
-                <Ionicons name="mail-outline" size={19} color="#8AA0C2" />
-
+                <Ionicons name="mail-outline" size={18} color="#8AA0C2" />
                 <TextInput
                   style={styles.input}
                   placeholder="you@example.com"
@@ -112,83 +110,91 @@ const Login = ({ navigation, onLogin }) => {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
-                  returnKeyType="next"
                 />
               </View>
 
-              {/* Password */}
-              <Text style={styles.label}>Password</Text>
-
+              <Text style={styles.label}>New Password</Text>
               <View style={styles.inputContainer}>
-                <Ionicons
-                  name="lock-closed-outline"
-                  size={19}
-                  color="#8AA0C2"
-                />
-
+                <Ionicons name="lock-closed-outline" size={18} color="#8AA0C2" />
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your password"
+                  placeholder="Enter new password"
                   placeholderTextColor="#8AA0C2"
-                  value={password}
-                  onChangeText={(text) => updateFormState({ password: text })}
-                  secureTextEntry={!showPassword}
+                  value={newPassword}
+                  onChangeText={(text) =>
+                    updateFormState({ newPassword: text })
+                  }
+                  secureTextEntry={!showNewPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  returnKeyType="done"
                 />
 
                 <TouchableOpacity
                   style={styles.eyeButton}
                   onPress={() =>
-                    updateFormState({ showPassword: !showPassword })
+                    updateFormState({
+                      showNewPassword: !showNewPassword,
+                    })
                   }
-                  activeOpacity={0.7}
                 >
                   <Ionicons
-                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    name={showNewPassword ? "eye-off-outline" : "eye-outline"}
                     size={20}
                     color="#8AA0C2"
                   />
                 </TouchableOpacity>
-
               </View>
-              
-              {/* Forgot Password Link */}
-              {/* <TouchableOpacity
-                style={styles.forgotButton}
-                onPress={() => navigation.navigate("ForgotPassword")}
-              >
-                <Text style={styles.forgotText}>Forgot Password?</Text>
-              </TouchableOpacity> */}
 
-              {/* Login Button */}
+              <Text style={styles.label}>Confirm Password</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="checkmark-circle-outline" size={18} color="#8AA0C2" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Confirm new password"
+                  placeholderTextColor="#8AA0C2"
+                  value={confirmPassword}
+                  onChangeText={(text) =>
+                    updateFormState({ confirmPassword: text })
+                  }
+                  secureTextEntry={!showConfirmPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+
+                <TouchableOpacity
+                  style={styles.eyeButton}
+                  onPress={() =>
+                    updateFormState({
+                      showConfirmPassword: !showConfirmPassword,
+                    })
+                  }
+                >
+                  <Ionicons
+                    name={
+                      showConfirmPassword ? "eye-off-outline" : "eye-outline"
+                    }
+                    size={20}
+                    color="#8AA0C2"
+                  />
+                </TouchableOpacity>
+              </View>
+
               <TouchableOpacity
-                style={[styles.loginButton, loading && styles.disabledButton]}
-                onPress={handleLogin}
+                style={[styles.resetButton, loading && styles.disabledButton]}
+                onPress={handleResetPassword}
                 disabled={loading}
               >
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.loginButtonText}>Login</Text>
+                  <Text style={styles.resetButtonText}>Reset Password</Text>
                 )}
               </TouchableOpacity>
 
-              {/* Signup Link */}
-              <View style={styles.signupRow}>
-                <Text style={styles.signupText}>Don't have an account? </Text>
-
-                <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
-                  <Text style={styles.signupLink}>Sign Up</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+                <Text style={styles.backLogin}>Back to Login</Text>
+              </TouchableOpacity>
             </View>
-
-            {/* Footer */}
-            <Text style={styles.footerText}>
-              Educational Tool for Computer Architecture Students
-            </Text>
           </View>
         </ScrollView>
       </TouchableWithoutFeedback>
@@ -196,7 +202,7 @@ const Login = ({ navigation, onLogin }) => {
   );
 };
 
-export default Login;
+export default ForgotPassword;
 
 const styles = StyleSheet.create({
   container: {
@@ -224,28 +230,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
-
-    shadowColor: "#263F99",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
   },
 
   appTitle: {
-    fontSize: 19,
+    fontSize: 22,
     fontWeight: "800",
     color: "#062B78",
-    textAlign: "center",
     marginBottom: 8,
   },
 
   subtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#294475",
+    marginBottom: 25,
     textAlign: "center",
-    marginBottom: 28,
-    letterSpacing: 0.2,
   },
 
   card: {
@@ -253,27 +251,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     paddingHorizontal: 18,
-    paddingTop: 22,
-    paddingBottom: 20,
-
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.16,
-    shadowRadius: 8,
+    paddingVertical: 22,
     elevation: 6,
-  },
-
-  heading: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#061F4F",
-    marginBottom: 6,
-  },
-
-  description: {
-    fontSize: 11,
-    color: "#42618F",
-    marginBottom: 22,
   },
 
   label: {
@@ -291,7 +270,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 11,
-    marginBottom: 18,
+    marginBottom: 16,
     backgroundColor: "#FFFFFF",
   },
 
@@ -310,59 +289,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  forgotButton: {
-  alignSelf: "flex-end",
-  marginTop: -8,
-  marginBottom: 16,
-},
 
-forgotText: {
-  fontSize: 12,
-  color: "#263F99",
-  fontWeight: "700",
-},
-
-  loginButton: {
+  resetButton: {
     height: 40,
     borderRadius: 8,
     backgroundColor: "#263F99",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: -2,
-    marginBottom: 22,
+    marginTop: 4,
+    marginBottom: 18,
   },
 
   disabledButton: {
     opacity: 0.7,
   },
 
-  loginButtonText: {
+  resetButtonText: {
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "700",
   },
 
-  signupRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  signupText: {
-    fontSize: 12,
-    color: "#061F4F",
-  },
-
-  signupLink: {
-    fontSize: 12,
+  backLogin: {
+    textAlign: "center",
     color: "#062B78",
     fontWeight: "800",
-  },
-
-  footerText: {
-    fontSize: 9,
-    color: "#294475",
-    marginTop: 22,
-    textAlign: "center",
+    fontSize: 12,
   },
 });

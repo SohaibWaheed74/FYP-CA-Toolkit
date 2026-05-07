@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Login from "../screens/Login";
 import Signup from "../screens/Signup";
 import HomeTabs from "../screens/HomeTabs";
+import ForgotPassword from "../screens/ForgotPassword";
 
 export const AuthContext = createContext({
   isLoggedIn: false,
@@ -53,6 +54,7 @@ const AuthStack = () => {
             </Stack.Screen>
 
             <Stack.Screen name="Signup" component={Signup} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
           </>
         )}
       </Stack.Navigator>

@@ -2,7 +2,7 @@
 // Architecture wala apiConfig use nahi kar rahe,
 // kyun ke usme /architecture already added hai.
 const AUTH_BASE_URL =
-  "http://192.168.18.108/ComputerArchitectureToolkitAPI/api/auth";
+  "http://10.69.4.48/ComputerArchitectureToolkitAPI/api/auth";
 
 const safeJsonParse = async (response) => {
   const text = await response.text();
@@ -132,6 +132,99 @@ export const makeAdmin = async (userId) => {
     return data;
   } catch (error) {
     console.log("Make Admin API Error:", error);
+    throw error;
+  }
+};
+// ================= MAKE ADMIN USER =================
+export const makeUser = async (userId) => {
+  try {
+    const url = `${AUTH_BASE_URL}/make-user/${userId}`;
+
+    console.log("MAKE USER URL:", url);
+
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+    });
+
+    const data = await safeJsonParse(response);
+
+    if (!response.ok) {
+      throw new Error(data?.message || "Failed to make user");
+    }
+
+    return data;
+  } catch (error) {
+    console.log("Make User API Error:", error);
+    throw error;
+  }
+};
+// ================= DELETE USER =================
+export const deleteUser = async (userId) => {
+  try {
+    const url = `${AUTH_BASE_URL}/delete-user/${userId}`;
+
+    console.log("DELETE USER URL:", url);
+
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    const data = await safeJsonParse(response);
+
+    if (!response.ok) {
+      throw new Error(data?.message || "Failed to delete user");
+    }
+
+    return data;
+  } catch (error) {
+    console.log("Delete User API Error:", error);
+    throw error;
+  }
+};
+// ================= FORGOT PASSWORD =================
+export const forgotPassword = async (email, newPassword) => {
+  try {
+    const url = `${AUTH_BASE_URL}/forgot-password`;
+
+    console.log("FORGOT PASSWORD URL:", url);
+
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        Email: email,
+        Password: newPassword,
+      }),
+    });
+
+    const data = await safeJsonParse(response);
+
+    console.log("FORGOT PASSWORD STATUS:", response.status);
+    console.log("FORGOT PASSWORD RESPONSE:", JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      throw new Error(
+        data?.message ||
+          data?.Message ||
+          data?.ExceptionMessage ||
+          data?.MessageDetail ||
+          "Failed to update password"
+      );
+    }
+
+    return data;
+  } catch (error) {
+    console.log("Forgot Password API Error:", error);
     throw error;
   }
 };

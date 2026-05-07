@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 
-import { getAllUsers, makeAdmin, deleteUser } from "../api/authApi";
+import { getAllUsers, makeAdmin, makeUser, deleteUser } from "../api/authApi";
 
 const UserDetails = ({ navigation }) => {
   const [screenState, setScreenState] = useState({
@@ -58,55 +58,56 @@ const UserDetails = ({ navigation }) => {
     fetchUsers();
   }, []);
 
-  // ================= MAKE ADMIN =================
-  const handleMakeAdmin = (item) => {
+  // ================= CHANGE USER ROLE =================
+  const handleChangeRole = (item) => {
     const userId = item?.UserID;
+    const isAdmin = item?.Role?.toLowerCase() === "admin";
+    const newRole = isAdmin ? "User" : "Admin";
 
     if (!userId) {
       Alert.alert("Error", "User ID not found");
       return;
     }
 
-    if (item?.Role?.toLowerCase() === "admin") {
-      Alert.alert("Info", "This user is already Admin");
-      return;
-    }
-
     Alert.alert(
-      "Make Admin",
-      `Are you sure you want to make ${item?.Email} admin?`,
+      "Change Role",
+      `Are you sure you want to make ${item?.Email} ${newRole}?`,
       [
         {
           text: "Cancel",
           style: "cancel",
         },
         {
-          text: "Make Admin",
+          text: `Make ${newRole}`,
           onPress: async () => {
             try {
               updateScreenState({
                 actionLoadingId: userId,
               });
 
-              await makeAdmin(userId);
+              if (isAdmin) {
+                await makeUser(userId);
+              } else {
+                await makeAdmin(userId);
+              }
 
               setScreenState((prev) => ({
                 ...prev,
                 users: prev.users.map((user) =>
-                  user.UserID === userId ? { ...user, Role: "Admin" } : user
+                  user.UserID === userId ? { ...user, Role: newRole } : user
                 ),
               }));
 
-              Alert.alert("Success", "User is now Admin");
+              Alert.alert("Success", `User is now ${newRole}`);
             } catch (error) {
               console.log(
-                "Make Admin Error:",
+                "Change Role Error:",
                 error?.message || error?.toString()
               );
 
               Alert.alert(
                 "Error",
-                error?.message || error?.toString() || "Failed to make admin"
+                error?.message || error?.toString() || "Failed to change role"
               );
             } finally {
               updateScreenState({
@@ -215,27 +216,22 @@ const UserDetails = ({ navigation }) => {
           <TouchableOpacity
             style={[
               styles.makeAdminButton,
-              isAdmin && styles.disabledButton,
+              isAdmin && styles.makeUserButton,
             ]}
-            onPress={() => handleMakeAdmin(item)}
-            disabled={isLoading || isAdmin}
+            onPress={() => handleChangeRole(item)}
+            disabled={isLoading}
           >
             {isLoading ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
               <>
                 <Ionicons
-                  name="shield-outline"
+                  name={isAdmin ? "person-outline" : "shield-outline"}
                   size={15}
-                  color={isAdmin ? "#9CA3AF" : "#FFFFFF"}
+                  color="#FFFFFF"
                 />
-                <Text
-                  style={[
-                    styles.makeAdminText,
-                    isAdmin && styles.disabledText,
-                  ]}
-                >
-                  Make Admin
+                <Text style={styles.makeAdminText}>
+                  {isAdmin ? "Make User" : "Make Admin"}
                 </Text>
               </>
             )}
@@ -403,6 +399,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
 
+  makeUserButton: {
+    backgroundColor: "#64748B",
+  },
+
   makeAdminText: {
     color: "#FFFFFF",
     fontSize: 12,
@@ -426,14 +426,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     marginLeft: 5,
-  },
-
-  disabledButton: {
-    backgroundColor: "#E5E7EB",
-  },
-
-  disabledText: {
-    color: "#9CA3AF",
   },
 
   centered: {

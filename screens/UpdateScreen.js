@@ -21,6 +21,7 @@ const emptyRegister = {
   RegisterID: null,
   Name: "",
   Action: "",
+  IsFlagRegister: 0,
 };
 
 const emptyAddressing = {
@@ -54,6 +55,12 @@ const emptyInstruction = {
 
 const operandTypeOptions = ["Register", "Immediate", "Memory"];
 const interruptSymbolOptions = ["1 (Input)", "2 (Output)"];
+const addressingModeOptions = [
+  "Direct Addressing Mode",
+  "Indirect Addressing Mode",
+  "Indexed Addressing Mode",
+];
+const addressingModeCodeOptions = ["00", "01", "10", "11"];
 
 const normalizeRegister = (reg) => ({
   ...emptyRegister,
@@ -61,9 +68,27 @@ const normalizeRegister = (reg) => ({
   RegisterID: reg?.RegisterID || reg?.registerID || null,
   Name: reg?.Name || reg?.name || "",
   Action: reg?.Action || reg?.action || "",
+  IsFlagRegister:
+    reg?.IsFlagRegister ??
+    reg?.isFlagRegister ??
+    reg?.isflagregister ??
+    reg?.IsFlag ??
+    reg?.isFlag ??
+    0,
 });
 
 const isFlagRegister = (reg) => {
+  const isFlag =
+    reg?.IsFlagRegister ??
+    reg?.isFlagRegister ??
+    reg?.isflagregister ??
+    reg?.IsFlag ??
+    reg?.isFlag;
+
+  if (isFlag !== undefined && isFlag !== null) {
+    return isFlag === true || isFlag === 1 || isFlag === "1";
+  }
+
   const action = String(reg?.Action || reg?.action || "").trim();
   return action.length > 0;
 };
@@ -475,6 +500,8 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
 
     const flagData = {
       ...flagRegister,
+      RegisterID: flagRegister.RegisterID || flagRegister.registerID || 0,
+      IsFlagRegister: 1,
       Action: flagRegister.Action || "",
     };
 
@@ -542,6 +569,7 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
 
     const gpData = {
       ...currentRegister,
+      IsFlagRegister: 0,
       Action: "",
     };
 
@@ -851,18 +879,22 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
       const registersPayload = [
         ...latestFlags.map((reg) => ({
           ...reg,
+          RegisterID: reg.RegisterID || reg.registerID || 0,
           ArchitectureID: Number(architectureId),
           RegisterSize: Number(cpuData.BusSize),
           Name: reg.Name,
           Action: reg.Action || "",
+          IsFlagRegister: 1,
         })),
 
         ...latestRegisters.map((reg) => ({
           ...reg,
+          RegisterID: reg.RegisterID || reg.registerID || 0,
           ArchitectureID: Number(architectureId),
           RegisterSize: Number(cpuData.BusSize),
           Name: reg.Name,
           Action: "",
+          IsFlagRegister: 0,
         })),
       ].filter((reg) => reg?.Name?.trim());
 
@@ -1056,7 +1088,7 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
 
         {/* +(Plus Button to add new Falg Register) */}
         <SectionHeader title="Flag Register" />
-        {/* <SectionHeader title="Flag Register" onPlusPress={openNewFlagRegister} /> */}
+         {/* <SectionHeader title="Flag Register" onPlusPress={openNewFlagRegister} />  */}
 
         <Text style={styles.label}>Flag Register Name</Text>
         <TextInput
@@ -1126,31 +1158,43 @@ const UpdateArchitectureScreen = ({ route, navigation }) => {
         {/* <CardHeader title="Addressing Modes" onPlusPress={openNewAddressing} /> */}
 
         <Text style={styles.label}>Addressing Mode</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Select Mode"
-          placeholderTextColor="#8A9AB0"
+        <CustomDropdown
+          placeholder="Select addressing mode"
           value={currentAddressing.AddressingModeName || ""}
-          onChangeText={(text) =>
+          options={addressingModeOptions}
+          open={openedDropdown === "addressingMode"}
+          onToggle={() => toggleDropdown("addressingMode")}
+          onSelect={(value) => {
             setCurrentAddressing({
               ...currentAddressing,
-              AddressingModeName: text,
-            })
-          }
+              AddressingModeName: value,
+            });
+
+            setCurrentInstruction((prev) => ({
+              ...prev,
+              _openedDropdown: null,
+            }));
+          }}
         />
 
         <Text style={styles.label}>Mode Code</Text>
-        <TextInput
-          style={styles.input}
+        <CustomDropdown
           placeholder="Select Code"
-          placeholderTextColor="#8A9AB0"
           value={currentAddressing.AddressingModeCode || ""}
-          onChangeText={(text) =>
+          options={addressingModeCodeOptions}
+          open={openedDropdown === "addressingModeCode"}
+          onToggle={() => toggleDropdown("addressingModeCode")}
+          onSelect={(value) => {
             setCurrentAddressing({
               ...currentAddressing,
-              AddressingModeCode: text,
-            })
-          }
+              AddressingModeCode: value,
+            });
+
+            setCurrentInstruction((prev) => ({
+              ...prev,
+              _openedDropdown: null,
+            }));
+          }}
         />
 
         <Text style={styles.label}>Symbol</Text>
@@ -1707,7 +1751,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "#FFFFFF",
     marginTop: 2,
-    maxHeight: 120,
+    maxHeight: 130,
     overflow: "hidden",
     zIndex: 1000,
   },

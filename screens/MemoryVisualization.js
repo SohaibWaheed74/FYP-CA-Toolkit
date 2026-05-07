@@ -15,6 +15,9 @@ const MemoryVisualization = () => {
 
   const [selectedRows, setSelectedRows] = useState(4);
 
+  const visibleMemoryBits =
+    selectedRows === "full" ? memoryBits : memoryBits?.slice(0, selectedRows);
+
   // Stack values from 14 to -1
   const stackValues = Array.from({ length: 16 }, (_, i) => 14 - i);
 
@@ -51,6 +54,16 @@ const MemoryVisualization = () => {
             </View>
             <Text style={styles.radioText}>8</Text>
           </TouchableOpacity>
+
+          {/* <TouchableOpacity
+            style={styles.radioOption}
+            onPress={() => setSelectedRows("full")}
+          >
+            <View style={styles.radioOuter}>
+              {selectedRows === "full" && <View style={styles.radioInner} />}
+            </View>
+            <Text style={styles.radioText}>Full</Text>
+          </TouchableOpacity> */}
         </View>
       </View>
 
@@ -58,8 +71,8 @@ const MemoryVisualization = () => {
         {memoryBits && memoryBits.length > 0 ? (
           //Display all memory acc to memory size
           // memoryBits.map((rowBits, rowIndex) => {
-          // Display only selected rows 4 or 8
-          memoryBits.slice(0, selectedRows).map((rowBits, rowIndex) => {
+          // Display only selected rows 4 or 8 or full
+          visibleMemoryBits.map((rowBits, rowIndex) => {
             const address = `0x${rowIndex
               .toString(16)
               .toUpperCase()
@@ -291,6 +304,8 @@ const styles = StyleSheet.create({
   //   color: "#1e3a8a", // 0 navy text
   // },
 
+  /* ================= Comment till here ================= */
+
   emptyText: {
     fontSize: 13,
     color: "#666",
@@ -376,40 +391,41 @@ const styles = StyleSheet.create({
     color: "#1e3a8a",
     fontWeight: "600",
   },
+
   legendContainer: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
-  marginTop: 8,
-  marginBottom: 12,
-  gap: 20,
-},
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    marginBottom: 12,
+    gap: 20,
+  },
 
-legendItem: {
-  flexDirection: "row",
-  alignItems: "center",
-},
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
 
-legendBox: {
-  width: 18,
-  height: 18,
-  borderRadius: 4,
-  marginRight: 6,
-  borderWidth: 1,
-  borderColor: "#1E3A8A",
-},
+  legendBox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    marginRight: 6,
+    borderWidth: 1,
+    borderColor: "#1E3A8A",
+  },
 
-blueBox: {
-  backgroundColor: "#1E3A8A",
-},
+  blueBox: {
+    backgroundColor: "#1E3A8A",
+  },
 
-whiteBox: {
-  backgroundColor: "#FFFFFF",
-},
+  whiteBox: {
+    backgroundColor: "#FFFFFF",
+  },
 
-legendText: {
-  fontSize: 12,
-  color: "#1E293B",
-  fontWeight: "500",
-},
+  legendText: {
+    fontSize: 12,
+    color: "#1E293B",
+    fontWeight: "500",
+  },
 });

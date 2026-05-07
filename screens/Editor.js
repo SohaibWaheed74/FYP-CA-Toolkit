@@ -18,6 +18,8 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import { ArchitectureContext } from "../context/ArchitectureContext";
 import { executeProgram } from "../api/executionApi";
 import { saveCodeFile, getCodeFiles, getCodeFileById } from "../api/codefile";
+import { getInstructionsByArchitectureId } from "../api/instructionApi";
+import { calculateCountCycleByArchitectureId } from "../utils/CountCycle";
 
 const EditorScreen = () => {
   const navigation = useNavigation();
@@ -259,31 +261,44 @@ const EditorScreen = () => {
   // =========================
   // CYCLE COUNT
   // =========================
-  const handleCycleCount = () => {
-    if (!code.trim()) {
-      Alert.alert("Error", "Please write some assembly code first.");
-      return;
-    }
+ const handleCycleCount = async () => {
+  if (!code.trim()) {
+    setError("Please write some assembly code first.");
+    setCycles(null);
+    return;
+  }
 
-    const programLines = code
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
+  if (!architectureId) {
+    setError("No architecture selected.");
+    setCycles(null);
+    return;
+  }
 
-    let totalCycles = 0;
+  try {
+    setError("");
 
-    programLines.forEach((line) => {
-      const instructionName = line.split(" ")[0].toUpperCase();
-
-      const instruction = selectedArchitecture?.Instructions?.find(
-        (ins) => ins.Mnemonics?.toUpperCase() === instructionName
-      );
-
-      totalCycles += instruction ? (instruction.InstructionFormat ?? 0) + 1 : 1;
+    const result = await calculateCountCycleByArchitectureId({
+      code,
+      architectureId,
+      getInstructionsByArchitectureId,
+      architecture: selectedArchitecture || {},
     });
 
-    setCycles(totalCycles);
-  };
+    setCycles(result.totalCycles);
+
+    console.log("Cycle Count Result:", result);
+  } catch (err) {
+    const message =
+      err?.message ||
+      err?.toString() ||
+      "Failed to count cycles";
+
+    setCycles(null);
+    setError(message);
+
+    console.log("Cycle Count Error:", err);
+  }
+};
 
   // =========================
   // OPEN FILE FROM DATABASE

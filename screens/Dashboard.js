@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
   },
 
   logoutButton: {
-    backgroundColor: "#1e40af",
+    backgroundColor: "#af1e1e",
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 6,
@@ -546,7 +546,7 @@ const styles = StyleSheet.create({
 
   updateButton: {
     flex: 1,
-    backgroundColor: "white",
+    backgroundColor: "#1e40af",
     borderColor: "#1e40af",
     borderWidth: 1,
     padding: 8,
@@ -562,7 +562,7 @@ const styles = StyleSheet.create({
 
   detailsButton: {
     flex: 1,
-    backgroundColor: "white",
+    backgroundColor: "#1e40af",
     borderColor: "#1e40af",
     borderWidth: 1,
     padding: 8,
@@ -571,7 +571,7 @@ const styles = StyleSheet.create({
   },
 
   buttonText: {
-    color: "#1e40af",
+    color: "white",
     fontWeight: "bold",
   },
 
