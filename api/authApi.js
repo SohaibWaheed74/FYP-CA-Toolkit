@@ -2,7 +2,7 @@
 // Architecture wala apiConfig use nahi kar rahe,
 // kyun ke usme /architecture already added hai.
 const AUTH_BASE_URL =
-  "http://10.69.4.48/ComputerArchitectureToolkitAPI/api/auth";
+  "http://192.168.1.6/ComputerArchitectureToolkitAPI/api/auth";
 
 const safeJsonParse = async (response) => {
   const text = await response.text();

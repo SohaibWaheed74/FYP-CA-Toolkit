@@ -13,11 +13,18 @@ import {
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { executeProgram } from "../api/executionApi";
 import { getCodeFiles, getCodeFileById } from "../api/codefile";
+import { getInstructionsByArchitectureId } from "../api/instructionApi";
+import { calculateCountCycleByArchitectureId } from "../utils/CountCycle";
 
 const Compare = ({ navigation, route }) => {
   const architecture = route?.params?.architecture;
+
   const architectureId =
-    route?.params?.architectureId || architecture?.ArchitectureID;
+    route?.params?.architectureId ||
+    architecture?.ArchitectureID ||
+    architecture?.architectureID ||
+    architecture?.architectureId ||
+    architecture?.id;
 
   const [programACode, setProgramACode] = useState("");
   const [programBCode, setProgramBCode] = useState("");
@@ -38,14 +45,14 @@ const Compare = ({ navigation, route }) => {
   const [savedFiles, setSavedFiles] = useState([]);
   const [selectedProgramForOpen, setSelectedProgramForOpen] = useState(null);
 
-  const makeProgramLines = code => {
+  const makeProgramLines = (code) => {
     return code
       .split("\n")
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
   };
 
-  const getErrorMessage = err => {
+  const getErrorMessage = (err) => {
     return (
       err?.response?.data?.message ||
       err?.response?.data?.Message ||
@@ -54,7 +61,24 @@ const Compare = ({ navigation, route }) => {
     );
   };
 
-  const normalizeExecutionResult = result => {
+  const getTotalCyclesFromResult = (cycleResult) => {
+    const total =
+      cycleResult?.totalCycles ??
+      cycleResult?.TotalCycles ??
+      cycleResult?.cycles ??
+      cycleResult?.Cycles ??
+      cycleResult;
+
+    const numericTotal = Number(total);
+
+    if (!Number.isFinite(numericTotal)) {
+      throw new Error("Cycle count result is empty or invalid.");
+    }
+
+    return numericTotal;
+  };
+
+  const normalizeExecutionResult = (result) => {
     return {
       answer:
         result?.Output ??
@@ -85,7 +109,7 @@ const Compare = ({ navigation, route }) => {
     };
   };
 
-  const formatOutput = output => {
+  const formatOutput = (output) => {
     if (!output) {
       return "Run program to see output";
     }
@@ -105,7 +129,7 @@ const Compare = ({ navigation, route }) => {
     return "No output";
   };
 
-  const handleOpen = async programType => {
+  const handleOpen = async (programType) => {
     if (!architectureId) {
       Alert.alert("Error", "No architecture selected.");
       return;
@@ -130,7 +154,7 @@ const Compare = ({ navigation, route }) => {
     }
   };
 
-  const openSavedFile = async fileId => {
+  const openSavedFile = async (fileId) => {
     if (!fileId) {
       Alert.alert("Error", "Invalid file selected.");
       return;
@@ -164,7 +188,18 @@ const Compare = ({ navigation, route }) => {
     }
   };
 
-  const runProgram = async programType => {
+  const calculateClockCycleForProgram = async (code) => {
+    const cycleResult = await calculateCountCycleByArchitectureId({
+      code,
+      architectureId,
+      getInstructionsByArchitectureId,
+      architecture: architecture || {},
+    });
+
+    return getTotalCyclesFromResult(cycleResult);
+  };
+
+  const runProgram = async (programType) => {
     const isProgramA = programType === "A";
     const code = isProgramA ? programACode : programBCode;
 
@@ -193,6 +228,20 @@ const Compare = ({ navigation, route }) => {
 
       const programLines = makeProgramLines(code);
 
+      let calculatedCycles = null;
+      let cycleErrorMessage = "";
+
+      try {
+        calculatedCycles = await calculateClockCycleForProgram(code);
+      } catch (cycleError) {
+        cycleErrorMessage =
+          cycleError?.message ||
+          cycleError?.toString() ||
+          "Failed to calculate clock cycles.";
+
+        console.log(`PROGRAM ${programType} CYCLE ERROR:`, cycleError);
+      }
+
       const result = await executeProgram(architectureId, programLines);
 
       console.log(`PROGRAM ${programType} EXECUTION RESULT:`, result);
@@ -200,14 +249,33 @@ const Compare = ({ navigation, route }) => {
       const executionResult = normalizeExecutionResult(result);
       const apiErrors = executionResult.errors || [];
 
+      const finalClock =
+        calculatedCycles !== null
+          ? calculatedCycles
+          : executionResult.clockCycles || "Cycle Error";
+
       if (isProgramA) {
         setProgramAOutput(executionResult);
-        setProgramAError(apiErrors.length > 0 ? apiErrors.join("\n") : "");
-        setClock1(executionResult.clockCycles);
+
+        const finalError = apiErrors.length > 0 ? apiErrors.join("\n") : "";
+        setProgramAError(
+          cycleErrorMessage
+            ? `${finalError}${finalError ? "\n" : ""}${cycleErrorMessage}`
+            : finalError
+        );
+
+        setClock1(finalClock);
       } else {
         setProgramBOutput(executionResult);
-        setProgramBError(apiErrors.length > 0 ? apiErrors.join("\n") : "");
-        setClock2(executionResult.clockCycles);
+
+        const finalError = apiErrors.length > 0 ? apiErrors.join("\n") : "";
+        setProgramBError(
+          cycleErrorMessage
+            ? `${finalError}${finalError ? "\n" : ""}${cycleErrorMessage}`
+            : finalError
+        );
+
+        setClock2(finalClock);
       }
     } catch (err) {
       console.log(`PROGRAM ${programType} ERROR:`, err);

@@ -1,6 +1,7 @@
 import React, { useContext } from "react";
 import { Alert, TouchableOpacity } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { StackActions } from "@react-navigation/native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -87,16 +88,39 @@ const HomeTabs = () => {
       />
 
       <Tab.Screen
-        name="EditorTab"
-        component={EditorStack}
-        options={{
-          title: "Editor",
-          tabBarLabel: "Editor",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="code" size={size} color={color} />
-          ),
-        }}
-      />
+  name="EditorTab"
+  component={EditorStack}
+  options={{
+    title: "Editor",
+    tabBarLabel: "Editor",
+    tabBarIcon: ({ color, size }) => (
+      <Ionicons name="code" size={size} color={color} />
+    ),
+  }}
+  listeners={({ navigation }) => ({
+    tabPress: () => {
+      const tabState = navigation.getState();
+
+      const editorTabRoute = tabState.routes.find(
+        (route) => route.name === "EditorTab"
+      );
+
+      const editorStackKey = editorTabRoute?.state?.key;
+      const editorStackIndex = editorTabRoute?.state?.index || 0;
+
+      // Agar EditorStack ke andar Debugging/Compare open hai,
+      // to sirf EditorStack ko first screen par lao.
+      // Default tab switching ko prevent nahi karna,
+      // warna Editor remount ho sakta hai aur code clear ho sakta hai.
+      if (editorStackKey && editorStackIndex > 0) {
+        navigation.dispatch({
+          ...StackActions.popToTop(),
+          target: editorStackKey,
+        });
+      }
+    },
+  })}
+/>
 
       <Tab.Screen
         name="RegistersVizTab"

@@ -20,6 +20,14 @@ import { executeProgram } from "../api/executionApi";
 import { saveCodeFile, getCodeFiles, getCodeFileById } from "../api/codefile";
 import { getInstructionsByArchitectureId } from "../api/instructionApi";
 import { calculateCountCycleByArchitectureId } from "../utils/CountCycle";
+import { buildCycleAnimationTrace } from "../utils/cycleAnimationTrace";
+import { getArchitectureDetails } from "../api/architectureApi";
+
+// If CycleAnimationScreen.js is in the same folder as EditorScreen, keep this:
+import CycleAnimationScreen from "./CycleAnimationScreen";
+
+// If CycleAnimationScreen.js is inside src/components, use this instead:
+// import CycleAnimationScreen from "../components/CycleAnimationScreen";
 
 const EditorScreen = () => {
   const navigation = useNavigation();
@@ -48,6 +56,11 @@ const EditorScreen = () => {
   const [savedFiles, setSavedFiles] = useState([]);
   const [fileNameInput, setFileNameInput] = useState("");
   const [cycles, setCycles] = useState(null);
+
+  const [animationVisible, setAnimationVisible] = useState(false);
+  const [cycleTrace, setCycleTrace] = useState([]);
+  const [animationArchitectureName, setAnimationArchitectureName] =
+    useState("Selected Architecture");
 
   const scrollToEditor = () => {
     setTimeout(() => {
@@ -261,7 +274,47 @@ const EditorScreen = () => {
   // =========================
   // CYCLE COUNT
   // =========================
- const handleCycleCount = async () => {
+  const handleCycleCount = async () => {
+    if (!code.trim()) {
+      setError("Please write some assembly code first.");
+      setCycles(null);
+      return;
+    }
+
+    if (!architectureId) {
+      setError("No architecture selected.");
+      setCycles(null);
+      return;
+    }
+
+    try {
+      setError("");
+
+      const result = await calculateCountCycleByArchitectureId({
+        code,
+        architectureId,
+        getInstructionsByArchitectureId,
+        architecture: selectedArchitecture || {},
+      });
+
+      setCycles(result.totalCycles);
+
+      console.log("Cycle Count Result:", result);
+    } catch (err) {
+      const message =
+        err?.message || err?.toString() || "Failed to count cycles";
+
+      setCycles(null);
+      setError(message);
+
+      console.log("Cycle Count Error:", err);
+    }
+  };
+
+  // =========================
+// CYCLE ANIMATION
+// =========================
+const handleCycleAnimation = async () => {
   if (!code.trim()) {
     setError("Please write some assembly code first.");
     setCycles(null);
@@ -277,26 +330,83 @@ const EditorScreen = () => {
   try {
     setError("");
 
-    const result = await calculateCountCycleByArchitectureId({
+    const programLines = code
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    const countResult = await calculateCountCycleByArchitectureId({
       code,
       architectureId,
       getInstructionsByArchitectureId,
       architecture: selectedArchitecture || {},
     });
 
-    setCycles(result.totalCycles);
+    let architectureDetails = selectedArchitecture || {};
 
-    console.log("Cycle Count Result:", result);
+    try {
+      const details = await getArchitectureDetails(architectureId);
+
+      architectureDetails = {
+        ...architectureDetails,
+        ...details,
+      };
+
+      setAnimationArchitectureName(
+        details?.architecture?.name ||
+          details?.ArchitectureName ||
+          details?.name ||
+          selectedArchitecture?.ArchitectureName ||
+          selectedArchitecture?.name ||
+          "Selected Architecture"
+      );
+    } catch (detailsError) {
+      console.log("Architecture details for animation failed:", detailsError);
+
+      setAnimationArchitectureName(
+        selectedArchitecture?.ArchitectureName ||
+          selectedArchitecture?.name ||
+          "Selected Architecture"
+      );
+    }
+
+    // Backend result sirf final flags sync ke liye use hoga.
+    // Registers animation logic ke according hi rahenge, default 0 se start.
+    let backendExecutionResult = null;
+
+    try {
+      backendExecutionResult = await executeProgram(
+        architectureId,
+        programLines
+      );
+    } catch (executionError) {
+      console.log(
+        "Backend execution for animation final flags failed:",
+        executionError
+      );
+    }
+
+    const trace = buildCycleAnimationTrace({
+      countResult,
+      architecture: architectureDetails,
+      executionResult: backendExecutionResult,
+    });
+
+    setCycles(countResult.totalCycles);
+    setCycleTrace(trace);
+    setAnimationVisible(true);
+
+    console.log("Cycle Animation Trace:", JSON.stringify(trace, null, 2));
   } catch (err) {
     const message =
-      err?.message ||
-      err?.toString() ||
-      "Failed to count cycles";
+      err?.message || err?.toString() || "Failed to load cycle animation";
 
     setCycles(null);
+    setCycleTrace([]);
+    setAnimationVisible(false);
     setError(message);
 
-    console.log("Cycle Count Error:", err);
+    console.log("Cycle Animation Error:", err);
   }
 };
 
@@ -399,6 +509,13 @@ const EditorScreen = () => {
               onPress={handleCycleCount}
             >
               <Text style={styles.primaryText}>Count Cycles</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={handleCycleAnimation}
+            >
+              <Text style={styles.primaryText}>Animation</Text>
             </TouchableOpacity>
           </View>
 
@@ -505,6 +622,14 @@ const EditorScreen = () => {
           </View>
         </View>
       </Modal>
+
+      {/* CYCLE ANIMATION SCREEN */}
+      <CycleAnimationScreen
+        visible={animationVisible}
+        onClose={() => setAnimationVisible(false)}
+        cycleTrace={cycleTrace}
+        architectureName={animationArchitectureName}
+      />
     </KeyboardAvoidingView>
   );
 };

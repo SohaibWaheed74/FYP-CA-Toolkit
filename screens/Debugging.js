@@ -75,50 +75,50 @@ const getBackendFlagValues = (apiFlags = []) => {
   } else if (apiFlags && typeof apiFlags === "object") {
     carry = normalizeFlagValue(
       apiFlags.Carry ??
-        apiFlags.carry ??
-        apiFlags.C ??
-        apiFlags.c ??
-        apiFlags.CF ??
-        apiFlags.cf ??
-        apiFlags["0"] ??
-        0
+      apiFlags.carry ??
+      apiFlags.C ??
+      apiFlags.c ??
+      apiFlags.CF ??
+      apiFlags.cf ??
+      apiFlags["0"] ??
+      0
     );
 
     overflow = normalizeFlagValue(
       apiFlags.Overflow ??
-        apiFlags.overflow ??
-        apiFlags.O ??
-        apiFlags.o ??
-        apiFlags.OF ??
-        apiFlags.of ??
-        apiFlags["1"] ??
-        0
+      apiFlags.overflow ??
+      apiFlags.O ??
+      apiFlags.o ??
+      apiFlags.OF ??
+      apiFlags.of ??
+      apiFlags["1"] ??
+      0
     );
 
     sign = normalizeFlagValue(
       apiFlags.Sign ??
-        apiFlags.sign ??
-        apiFlags.Negative ??
-        apiFlags.negative ??
-        apiFlags.S ??
-        apiFlags.s ??
-        apiFlags.SF ??
-        apiFlags.sf ??
-        apiFlags.N ??
-        apiFlags.n ??
-        apiFlags["2"] ??
-        0
+      apiFlags.sign ??
+      apiFlags.Negative ??
+      apiFlags.negative ??
+      apiFlags.S ??
+      apiFlags.s ??
+      apiFlags.SF ??
+      apiFlags.sf ??
+      apiFlags.N ??
+      apiFlags.n ??
+      apiFlags["2"] ??
+      0
     );
 
     zero = normalizeFlagValue(
       apiFlags.Zero ??
-        apiFlags.zero ??
-        apiFlags.Z ??
-        apiFlags.z ??
-        apiFlags.ZF ??
-        apiFlags.zf ??
-        apiFlags["3"] ??
-        0
+      apiFlags.zero ??
+      apiFlags.Z ??
+      apiFlags.z ??
+      apiFlags.ZF ??
+      apiFlags.zf ??
+      apiFlags["3"] ??
+      0
     );
   }
 

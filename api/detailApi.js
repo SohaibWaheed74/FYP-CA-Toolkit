@@ -1,4 +1,4 @@
-const BASE_URL = "http://10.69.4.48/ComputerArchitectureToolkitAPI/api";
+const BASE_URL = "http://192.168.1.6/ComputerArchitectureToolkitAPI/api";
 // const BASE_URL = "http://192.168.18.108/ComputerArchitectureToolkitAPI/api";
 
 // ================= DEFAULT FLAG REGISTERS =================
