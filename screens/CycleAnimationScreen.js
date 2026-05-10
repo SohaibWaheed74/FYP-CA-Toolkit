@@ -111,6 +111,8 @@ const CycleAnimationScreen = ({
   const ringAnim = useRef(new Animated.Value(0)).current;
   const timelineScrollRef = useRef(null);
 
+  const [isRunning, setIsRunning] = useState(true);
+
   const totalCycles = Array.isArray(cycleTrace) ? cycleTrace.length : 0;
   const safeIndex =
     totalCycles > 0 ? Math.min(currentIndex, totalCycles - 1) : 0;
@@ -122,6 +124,7 @@ const CycleAnimationScreen = ({
   const stageBg = getStageBg(currentStage);
 
   const isLastCycle = totalCycles > 0 && safeIndex === totalCycles - 1;
+  const showPauseButton = isRunning && !isLastCycle;
 
   const progressPercent =
     totalCycles > 0 ? ((safeIndex + 1) / totalCycles) * 100 : 0;
@@ -133,11 +136,13 @@ const CycleAnimationScreen = ({
   useEffect(() => {
     if (visible) {
       setCurrentIndex(0);
+      setIsRunning(totalCycles > 1);
     }
   }, [visible, totalCycles]);
 
   useEffect(() => {
     if (!visible) return;
+    if (!isRunning) return;
     if (totalCycles === 0) return;
     if (safeIndex >= totalCycles - 1) return;
 
@@ -149,7 +154,15 @@ const CycleAnimationScreen = ({
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [visible, safeIndex, totalCycles]);
+  }, [visible, isRunning, safeIndex, totalCycles]);
+
+  useEffect(() => {
+    if (!visible) return;
+
+    if (isLastCycle) {
+      setIsRunning(false);
+    }
+  }, [visible, isLastCycle]);
 
   useEffect(() => {
     if (!visible) return;
@@ -183,8 +196,25 @@ const CycleAnimationScreen = ({
     outputRange: ["0deg", "360deg"],
   });
 
+  const toggleRunning = () => {
+    if (totalCycles === 0) return;
+
+    if (isLastCycle) {
+      setCurrentIndex(0);
+      setIsRunning(totalCycles > 1);
+      return;
+    }
+
+    setIsRunning((prev) => !prev);
+  };
+
+  const goBackStep = () => {
+    setCurrentIndex((prev) => Math.max(prev - 1, 0));
+  };
+
   const closeScreen = () => {
     setCurrentIndex(0);
+    setIsRunning(true);
     onClose?.();
   };
 
@@ -323,6 +353,38 @@ const CycleAnimationScreen = ({
                 ]}
               />
             </View>
+
+            {/* <View style={styles.controlRow}>
+              <TouchableOpacity
+                style={[
+                  styles.stepBackButton,
+                  (safeIndex === 0 || totalCycles === 0) &&
+                    styles.disabledControl,
+                ]}
+                onPress={goBackStep}
+                disabled={safeIndex === 0 || totalCycles === 0}
+              >
+                <Ionicons name="arrow-back" size={16} color="#1F3C88" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.playPauseButton,
+                  totalCycles === 0 && styles.disabledControl,
+                ]}
+                onPress={toggleRunning}
+                disabled={totalCycles === 0}
+              >
+                <Ionicons
+                  name={showPauseButton ? "pause" : "play"}
+                  size={15}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.playPauseText}>
+                  {showPauseButton ? "Pause" : "Start"}
+                </Text>
+              </TouchableOpacity>
+            </View> */}
 
             <ScrollView
               ref={timelineScrollRef}
@@ -630,6 +692,46 @@ const styles = StyleSheet.create({
   progressFill: {
     height: "100%",
     borderRadius: 10,
+  },
+
+  controlRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+
+  stepBackButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#D7E3F7",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
+
+  playPauseButton: {
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#1F3C88",
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  playPauseText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+    marginLeft: 5,
+  },
+
+  disabledControl: {
+    opacity: 0.5,
   },
 
   timelineRow: {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -10,9 +10,20 @@ import {
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 
+import { AuthContext } from "../navigation/AuthStack";
 import { getAllUsers, makeAdmin, makeUser, deleteUser } from "../api/authApi";
 
 const UserDetails = ({ navigation }) => {
+  const { user: loggedInUser } = useContext(AuthContext);
+
+  const loggedInUserRole = loggedInUser?.Role?.toLowerCase();
+
+  const isLoggedInAdmin = loggedInUserRole === "admin";
+  const isLoggedInSuperAdmin = loggedInUserRole === "superadmin";
+
+  const hasAdminAccess = isLoggedInAdmin || isLoggedInSuperAdmin;
+  const canDelete = isLoggedInSuperAdmin;
+
   const [screenState, setScreenState] = useState({
     users: [],
     loading: true,
@@ -60,12 +71,27 @@ const UserDetails = ({ navigation }) => {
 
   // ================= CHANGE USER ROLE =================
   const handleChangeRole = (item) => {
+    if (!hasAdminAccess) {
+      Alert.alert(
+        "Access Denied",
+        "Only Admin or SuperAdmin can change user roles."
+      );
+      return;
+    }
+
     const userId = item?.UserID;
-    const isAdmin = item?.Role?.toLowerCase() === "admin";
+    const role = item?.Role?.toLowerCase();
+    const isAdmin = role === "admin";
+    const isSuperAdmin = role === "superadmin";
     const newRole = isAdmin ? "User" : "Admin";
 
     if (!userId) {
       Alert.alert("Error", "User ID not found");
+      return;
+    }
+
+    if (isSuperAdmin) {
+      Alert.alert("Access Denied", "SuperAdmin role cannot be changed.");
       return;
     }
 
@@ -122,10 +148,22 @@ const UserDetails = ({ navigation }) => {
 
   // ================= DELETE USER =================
   const handleDeleteUser = (item) => {
+    if (!canDelete) {
+      Alert.alert("Access Denied", "Only SuperAdmin can delete users.");
+      return;
+    }
+
     const userId = item?.UserID;
+    const role = item?.Role?.toLowerCase();
+    const isSuperAdmin = role === "superadmin";
 
     if (!userId) {
       Alert.alert("Error", "User ID not found");
+      return;
+    }
+
+    if (isSuperAdmin) {
+      Alert.alert("Access Denied", "SuperAdmin cannot be deleted.");
       return;
     }
 
@@ -146,7 +184,7 @@ const UserDetails = ({ navigation }) => {
                 actionLoadingId: userId,
               });
 
-              await deleteUser(userId);
+              await deleteUser(userId, loggedInUser?.UserID);
 
               setScreenState((prev) => ({
                 ...prev,
@@ -177,7 +215,9 @@ const UserDetails = ({ navigation }) => {
 
   // ================= RENDER USER CARD =================
   const renderUser = ({ item }) => {
-    const isAdmin = item?.Role?.toLowerCase() === "admin";
+    const role = item?.Role?.toLowerCase();
+    const isAdmin = role === "admin";
+    const isSuperAdmin = role === "superadmin";
     const isLoading = actionLoadingId === item?.UserID;
 
     return (
@@ -185,7 +225,11 @@ const UserDetails = ({ navigation }) => {
         <View style={styles.userTopRow}>
           <View style={styles.userIconBox}>
             <Ionicons
-              name={isAdmin ? "shield-checkmark-outline" : "person-outline"}
+              name={
+                isSuperAdmin || isAdmin
+                  ? "shield-checkmark-outline"
+                  : "person-outline"
+              }
               size={24}
               color="#FFFFFF"
             />
@@ -197,13 +241,21 @@ const UserDetails = ({ navigation }) => {
             <View
               style={[
                 styles.roleBadge,
-                isAdmin ? styles.adminBadge : styles.userBadge,
+                isSuperAdmin
+                  ? styles.superAdminBadge
+                  : isAdmin
+                  ? styles.adminBadge
+                  : styles.userBadge,
               ]}
             >
               <Text
                 style={[
                   styles.roleText,
-                  isAdmin ? styles.adminRoleText : styles.userRoleText,
+                  isSuperAdmin
+                    ? styles.superAdminRoleText
+                    : isAdmin
+                    ? styles.adminRoleText
+                    : styles.userRoleText,
                 ]}
               >
                 {item?.Role || "User"}
@@ -217,40 +269,58 @@ const UserDetails = ({ navigation }) => {
             style={[
               styles.makeAdminButton,
               isAdmin && styles.makeUserButton,
+              isSuperAdmin && styles.disabledButton,
             ]}
             onPress={() => handleChangeRole(item)}
-            disabled={isLoading}
+            disabled={isLoading || isSuperAdmin}
           >
             {isLoading ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
               <>
                 <Ionicons
-                  name={isAdmin ? "person-outline" : "shield-outline"}
+                  name={
+                    isSuperAdmin
+                      ? "shield-checkmark-outline"
+                      : isAdmin
+                      ? "person-outline"
+                      : "shield-outline"
+                  }
                   size={15}
-                  color="#FFFFFF"
+                  color={isSuperAdmin ? "#9CA3AF" : "#FFFFFF"}
                 />
-                <Text style={styles.makeAdminText}>
-                  {isAdmin ? "Make User" : "Make Admin"}
+                <Text
+                  style={[
+                    styles.makeAdminText,
+                    isSuperAdmin && styles.disabledText,
+                  ]}
+                >
+                  {isSuperAdmin
+                    ? "SuperAdmin"
+                    : isAdmin
+                    ? "Make User"
+                    : "Make Admin"}
                 </Text>
               </>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => handleDeleteUser(item)}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <>
-                <Ionicons name="trash-outline" size={15} color="#FFFFFF" />
-                <Text style={styles.deleteText}>Delete</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          {canDelete && !isSuperAdmin && (
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => handleDeleteUser(item)}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="trash-outline" size={15} color="#FFFFFF" />
+                  <Text style={styles.deleteText}>Delete</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
@@ -362,6 +432,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
 
+  superAdminBadge: {
+    backgroundColor: "#FEF3C7",
+  },
+
   adminBadge: {
     backgroundColor: "#DCFCE7",
   },
@@ -373,6 +447,10 @@ const styles = StyleSheet.create({
   roleText: {
     fontSize: 11,
     fontWeight: "800",
+  },
+
+  superAdminRoleText: {
+    color: "#B45309",
   },
 
   adminRoleText: {
@@ -426,6 +504,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     marginLeft: 5,
+  },
+
+  disabledButton: {
+    backgroundColor: "#E5E7EB",
+  },
+
+  disabledText: {
+    color: "#9CA3AF",
   },
 
   centered: {

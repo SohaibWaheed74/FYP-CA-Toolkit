@@ -23,7 +23,13 @@ import { useArchitectureForExecution } from "../api/executionApi";
 const DashBoard = ({ navigation }) => {
   const { logout, user } = useContext(AuthContext);
 
-  const isAdmin = user?.Role?.toLowerCase() === "admin";
+  const userRole = user?.Role?.toLowerCase();
+
+  const isAdmin = userRole === "admin";
+  const isSuperAdmin = userRole === "superadmin";
+
+  const hasAdminAccess = isAdmin || isSuperAdmin;
+  const canDelete = isSuperAdmin;
 
   const { setSelectedArchitecture, initializeMemory, clearMemory } =
     useContext(ArchitectureContext);
@@ -164,8 +170,11 @@ const DashBoard = ({ navigation }) => {
 
   // ================= UPDATE =================
   const handleUpdate = (id) => {
-    if (!isAdmin) {
-      Alert.alert("Access Denied", "Only Admin can update architecture.");
+    if (!hasAdminAccess) {
+      Alert.alert(
+        "Access Denied",
+        "Only Admin or SuperAdmin can update architecture."
+      );
       return;
     }
 
@@ -181,8 +190,11 @@ const DashBoard = ({ navigation }) => {
 
   // ================= DELETE ARCHITECTURE =================
   const handleDelete = (item) => {
-    if (!isAdmin) {
-      Alert.alert("Access Denied", "Only Admin can delete architecture.");
+    if (!canDelete) {
+      Alert.alert(
+        "Access Denied",
+        "Only SuperAdmin can delete architecture."
+      );
       return;
     }
 
@@ -252,8 +264,8 @@ const DashBoard = ({ navigation }) => {
             <Text style={styles.cardTitle}>{item.Name}</Text>
           </View>
 
-          {/* Delete Button - Admin only */}
-          {/* {isAdmin && (
+          {/* Delete Button - SuperAdmin only */}
+          {canDelete && (
             <TouchableOpacity
               style={styles.deleteIconButton}
               onPress={() => handleDelete(item)}
@@ -265,7 +277,7 @@ const DashBoard = ({ navigation }) => {
                 <Ionicons name="trash-outline" size={20} color="#DC2626" />
               )}
             </TouchableOpacity>
-          )} */}
+          )}
         </View>
 
         <Text style={styles.cardText}>Memory: {item.MemorySize} Bytes</Text>
@@ -287,7 +299,7 @@ const DashBoard = ({ navigation }) => {
           <TouchableOpacity
             style={[
               styles.updateButton,
-              !isAdmin && styles.disabledUpdateButton,
+              !hasAdminAccess && styles.disabledUpdateButton,
             ]}
             onPress={() => handleUpdate(item.ArchitectureID)}
             disabled={isLoading}
@@ -295,7 +307,7 @@ const DashBoard = ({ navigation }) => {
             <Text
               style={[
                 styles.buttonText,
-                !isAdmin && styles.disabledUpdateText,
+                !hasAdminAccess && styles.disabledUpdateText,
               ]}
             >
               Update
@@ -393,8 +405,8 @@ const DashBoard = ({ navigation }) => {
         }
       />
 
-      {/* Floating Users Button - Admin Only */}
-      {isAdmin && (
+      {/* Floating Users Button - Admin and SuperAdmin */}
+      {hasAdminAccess && (
         <TouchableOpacity style={styles.floatingUsersButton} onPress={handleUsers}>
           <Ionicons name="people-outline" size={24} color="#FFFFFF" />
         </TouchableOpacity>

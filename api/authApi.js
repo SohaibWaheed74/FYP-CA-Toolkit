@@ -163,9 +163,9 @@ export const makeUser = async (userId) => {
   }
 };
 // ================= DELETE USER =================
-export const deleteUser = async (userId) => {
+export const deleteUser = async (userId, currentUserId) => {
   try {
-    const url = `${AUTH_BASE_URL}/delete-user/${userId}`;
+    const url = `${AUTH_BASE_URL}/delete-user/${userId}/${currentUserId}`;
 
     console.log("DELETE USER URL:", url);
 

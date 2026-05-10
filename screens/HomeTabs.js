@@ -19,7 +19,13 @@ const HomeTabs = () => {
   const insets = useSafeAreaInsets();
 
   const { user } = useContext(AuthContext);
-  const isAdmin = user?.Role?.toLowerCase() === "admin";
+
+  const userRole = user?.Role?.toLowerCase();
+
+  const isAdmin = userRole === "admin";
+  const isSuperAdmin = userRole === "superadmin";
+
+  const hasAdminAccess = isAdmin || isSuperAdmin;
 
   return (
     <Tab.Navigator
@@ -63,64 +69,64 @@ const HomeTabs = () => {
             <Ionicons
               name="hardware-chip-outline"
               size={size}
-              color={isAdmin ? color : "#9CA3AF"}
+              color={hasAdminAccess ? color : "#9CA3AF"}
             />
           ),
           tabBarButton: (props) => (
             <TouchableOpacity
               {...props}
-              activeOpacity={isAdmin ? 0.7 : 1}
+              activeOpacity={hasAdminAccess ? 0.7 : 1}
               onPress={() => {
-                if (!isAdmin) {
+                if (!hasAdminAccess) {
                   Alert.alert(
                     "Access Denied",
-                    "Only Admin can create architecture."
+                    "Only Admin or SuperAdmin can create architecture."
                   );
                   return;
                 }
 
                 props.onPress();
               }}
-              style={[props.style, !isAdmin && { opacity: 0.45 }]}
+              style={[props.style, !hasAdminAccess && { opacity: 0.45 }]}
             />
           ),
         }}
       />
 
       <Tab.Screen
-  name="EditorTab"
-  component={EditorStack}
-  options={{
-    title: "Editor",
-    tabBarLabel: "Editor",
-    tabBarIcon: ({ color, size }) => (
-      <Ionicons name="code" size={size} color={color} />
-    ),
-  }}
-  listeners={({ navigation }) => ({
-    tabPress: () => {
-      const tabState = navigation.getState();
+        name="EditorTab"
+        component={EditorStack}
+        options={{
+          title: "Editor",
+          tabBarLabel: "Editor",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="code" size={size} color={color} />
+          ),
+        }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            const tabState = navigation.getState();
 
-      const editorTabRoute = tabState.routes.find(
-        (route) => route.name === "EditorTab"
-      );
+            const editorTabRoute = tabState.routes.find(
+              (route) => route.name === "EditorTab"
+            );
 
-      const editorStackKey = editorTabRoute?.state?.key;
-      const editorStackIndex = editorTabRoute?.state?.index || 0;
+            const editorStackKey = editorTabRoute?.state?.key;
+            const editorStackIndex = editorTabRoute?.state?.index || 0;
 
-      // Agar EditorStack ke andar Debugging/Compare open hai,
-      // to sirf EditorStack ko first screen par lao.
-      // Default tab switching ko prevent nahi karna,
-      // warna Editor remount ho sakta hai aur code clear ho sakta hai.
-      if (editorStackKey && editorStackIndex > 0) {
-        navigation.dispatch({
-          ...StackActions.popToTop(),
-          target: editorStackKey,
-        });
-      }
-    },
-  })}
-/>
+            // Agar EditorStack ke andar Debugging/Compare open hai,
+            // to sirf EditorStack ko first screen par lao.
+            // Default tab switching ko prevent nahi karna,
+            // warna Editor remount ho sakta hai aur code clear ho sakta hai.
+            if (editorStackKey && editorStackIndex > 0) {
+              navigation.dispatch({
+                ...StackActions.popToTop(),
+                target: editorStackKey,
+              });
+            }
+          },
+        })}
+      />
 
       <Tab.Screen
         name="RegistersVizTab"

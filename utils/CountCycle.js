@@ -370,7 +370,7 @@ export function calculateCountCycle(code, selectedArchitecture) {
   return {
     totalCycles: breakdown.total,
     instructionCount: steps.length,
-    mode: "teacher-fetch-decode-execute-action-based",
+    mode: "fetch-decode-execute-action-based",
     breakdown,
     steps,
   };
