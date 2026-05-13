@@ -50,6 +50,9 @@ const RegisterDesign = () => {
   const totalRegisters = flagRegisters.length + gpRegisters.length;
   const remainingRegisters = maxRegisters - totalRegisters;
 
+  // Calculate required bits for padding based on maximum registers (JS Equivalent)
+  const requiredBits = Math.max(1, Math.ceil(Math.log2(maxRegisters || 1)));
+
   // ================= Common Validations =================
   const isRegisterLimitReached = () => {
     const currentTotal = flagRegisters.length + gpRegisters.length;
@@ -77,7 +80,7 @@ const RegisterDesign = () => {
     const newName = name.trim().toLowerCase();
 
     const existsInGP = gpRegisters.some(
-      (gp) => gp.trim().toLowerCase() === newName
+      (gp) => gp.name.trim().toLowerCase() === newName
     );
 
     const existsInFlag = flagRegisters.some(
@@ -114,6 +117,8 @@ const RegisterDesign = () => {
       name: flagRegisterName.trim(),
       action: flagRegisterAction.trim() || "",
       isFlagRegister: true,
+      // Automatic binary code assignment added here
+      registerCode: totalRegisters.toString(2).padStart(requiredBits, '0'),
     };
 
     setFlagRegisters((prev) => [...prev, newFlagRegister]);
@@ -137,7 +142,13 @@ const RegisterDesign = () => {
       return;
     }
 
-    setGpRegisters((prev) => [...prev, gpRegisterName.trim()]);
+    const newGpRegister = {
+      name: gpRegisterName.trim(),
+      // Automatic binary code assignment added here
+      registerCode: totalRegisters.toString(2).padStart(requiredBits, '0'),
+    };
+
+    setGpRegisters((prev) => [...prev, newGpRegister]);
     setGpRegisterName("");
   };
 
@@ -168,18 +179,20 @@ const RegisterDesign = () => {
   const handleNext = () => {
     // IMPORTANT:
     // Backend ke liye PascalCase keys bhej rahe hain:
-    // Name, Action, IsFlagRegister
+    // Name, Action, IsFlagRegister, RegisterCode
     const registers = [
       ...flagRegisters.map((flag) => ({
         Name: flag.name,
         Action: flag.action || "",
         IsFlagRegister: true,
+        RegisterCode: flag.registerCode, // Passed safely
       })),
 
       ...gpRegisters.map((gp) => ({
-        Name: gp,
+        Name: gp.name,
         Action: "",
         IsFlagRegister: false,
+        RegisterCode: gp.registerCode, // Passed safely
       })),
     ];
 
@@ -222,22 +235,6 @@ const RegisterDesign = () => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Register Count Info */}
-        {/* <View style={styles.infoCard}>
-          <Text style={styles.infoText}>
-            Total Registers Allowed: {maxRegisters}
-          </Text>
-
-          <Text style={styles.infoText}>
-            Added Registers: {totalRegisters}
-          </Text>
-
-          <Text style={styles.infoText}>
-            Remaining Registers:{" "}
-            {remainingRegisters < 0 ? 0 : remainingRegisters}
-          </Text>
-        </View> */}
-
         {/* -------- Flag Register -------- */}
         <Text style={styles.label}>Flag Register Name</Text>
         <TextInput
@@ -300,7 +297,8 @@ const RegisterDesign = () => {
         {gpRegisters.map((gp, index) => (
           <View key={`gp-${index}`} style={styles.card}>
             <Text style={styles.submittedText}>
-              <Text style={styles.bold}>GP Register:</Text> {gp}
+              {/* Changed gp to gp.name to match updated object structure */}
+              <Text style={styles.bold}>GP Register:</Text> {gp.name} 
             </Text>
 
             <Text style={styles.submittedText}>

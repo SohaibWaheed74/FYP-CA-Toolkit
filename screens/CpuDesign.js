@@ -9,6 +9,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -48,9 +49,54 @@ const CpuDesign = ({ navigation }) => {
     }, [])
   );
 
+  // ================= VALIDATION LOGIC =================
+  const isPowerOfTwo = (n) => {
+    if (isNaN(n) || n <= 0) return false;
+    // Bitwise check to see if a number is a power of 2
+    return (n & (n - 1)) === 0;
+  };
+
+  const validateInputs = () => {
+    // 1. Check for empty fields
+    if (
+      !architectureName.trim() ||
+      !memorySize.trim() ||
+      !busSize.trim() ||
+      !stackSize.trim() ||
+      !registerCount.trim() ||
+      !instructionCount.trim()
+    ) {
+      Alert.alert("Validation Error", "All fields are required. Please fill them out.");
+      return false;
+    }
+
+    // 2. Extract numbers (removes letters like "B" or "-bit")
+    const memNum = parseInt(memorySize.replace(/[^0-9]/g, ""), 10);
+    const busNum = parseInt(busSize.replace(/[^0-9]/g, ""), 10);
+    const stackNum = parseInt(stackSize.replace(/[^0-9]/g, ""), 10);
+
+    // 3. Power of 2 Validations
+    if (!isPowerOfTwo(memNum)) {
+      Alert.alert("Validation Error", "Memory Size must be a power of 2 (e.g., 2, 4, 8, 16, 32, 64...).");
+      return false;
+    }
+
+    if (!isPowerOfTwo(busNum)) {
+      Alert.alert("Validation Error", "Bus Size must be a power of 2 (e.g., 2, 4, 8, 16, 32...).");
+      return false;
+    }
+
+    if (!isPowerOfTwo(stackNum)) {
+      Alert.alert("Validation Error", "Stack Size must be a power of 2 (e.g., 2, 4, 8, 16, 32...).");
+      return false;
+    }
+
+    return true;
+  };
+
   // ADD BUTTON HANDLER
   const handleAdd = async () => {
-    if (!architectureName.trim()) return;
+    if (!validateInputs()) return; // Stop if validation fails
 
     const cpuData = {
       architectureName,
@@ -78,7 +124,18 @@ const CpuDesign = ({ navigation }) => {
   const handleNext = () => {
     let cpuDataToSend;
 
-    if (architectureName.trim()) {
+    // Check if the user typed anything in the current form
+    const isFormPartiallyFilled =
+      architectureName.trim() ||
+      memorySize.trim() ||
+      busSize.trim() ||
+      stackSize.trim() ||
+      registerCount.trim() ||
+      instructionCount.trim();
+
+    if (isFormPartiallyFilled) {
+      if (!validateInputs()) return; // Stop if validation fails
+
       cpuDataToSend = {
         architectureName,
         memorySize,
@@ -88,9 +145,10 @@ const CpuDesign = ({ navigation }) => {
         instructionCount,
       };
     } else if (submittedData.length > 0) {
+      // Form is empty but they already clicked "ADD" previously
       cpuDataToSend = submittedData[submittedData.length - 1];
     } else {
-      alert("Please enter CPU design details first");
+      Alert.alert("Error", "Please enter CPU design details first.");
       return;
     }
 
@@ -127,6 +185,7 @@ const CpuDesign = ({ navigation }) => {
             style={styles.input}
             placeholder="Enter memory size (e.g., 64 B)"
             placeholderTextColor="black"
+            keyboardType="numeric"
             value={memorySize}
             onChangeText={setMemorySize}
             returnKeyType="next"
@@ -137,6 +196,7 @@ const CpuDesign = ({ navigation }) => {
             style={styles.input}
             placeholder="Enter bus size (e.g., 32-bit)"
             placeholderTextColor="black"
+            keyboardType="numeric"
             value={busSize}
             onChangeText={setBusSize}
             returnKeyType="next"
@@ -147,6 +207,7 @@ const CpuDesign = ({ navigation }) => {
             style={styles.input}
             placeholder="Enter stack size (e.g., 16 B)"
             placeholderTextColor="black"
+            keyboardType="numeric"
             value={stackSize}
             onChangeText={setStackSize}
             returnKeyType="next"

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -41,6 +41,14 @@ const DEFAULT_FLAG_REGISTERS = [
     action: "Set when arithmetic overflow occurs",
     isFlagRegister: true,
   },
+];
+
+const DEFAULT_ADDRESSING_MODES = [
+  { id: "default-immediate", name: "Immediate", code: "1", symbol: "#" },
+  { id: "default-direct", name: "Direct", code: "2", symbol: "[]" },
+  { id: "default-indexed", name: "Indexed", code: "3", symbol: "X" },
+  { id: "default-extended", name: "Extended", code: "4", symbol: "EXT" },
+  { id: "default-inherent", name: "Inherent", code: "0", symbol: "-" },
 ];
 
 const NO_FLAG_INSTRUCTIONS = ["MOV", "MOVE", "SET", "LOAD", "STORE", "PUSH", "POP"];
@@ -211,6 +219,70 @@ const getDestinationIndex = instruction => {
   return null;
 };
 
+const getAddressingModeName = instruction => {
+  return getTextValue(
+    instruction,
+    [
+      "addressingMode",
+      "AddressingMode",
+      "addressingModeName",
+      "AddressingModeName",
+      "mode",
+      "Mode",
+    ],
+    ""
+  );
+};
+
+const getAddressingModeCode = instruction => {
+  return getTextValue(
+    instruction,
+    [
+      "addressingModeCode",
+      "AddressingModeCode",
+      "modeCode",
+      "ModeCode",
+      "addressingCode",
+      "AddressingCode",
+    ],
+    ""
+  );
+};
+
+const getInterruptSymbol = instruction => {
+  return getTextValue(
+    instruction,
+    ["interruptSymbol", "InterruptSymbol", "interrupt_symbol", "Interrupt", "interrupt"],
+    ""
+  );
+};
+
+const getInputRegister = instruction => {
+  return getTextValue(
+    instruction,
+    ["inputRegister", "InputRegister", "input_register", "InputReg", "inputReg"],
+    ""
+  );
+};
+
+const getOutputRegister = instruction => {
+  return getTextValue(
+    instruction,
+    ["outputRegister", "OutputRegister", "output_register", "OutputReg", "outputReg"],
+    ""
+  );
+};
+
+const hasInterruptDetails = instruction => {
+  return [
+    getInterruptSymbol(instruction),
+    getInputRegister(instruction),
+    getOutputRegister(instruction),
+  ].some(isUsefulValue);
+};
+
+const normalizeText = value => String(value || "").trim().toLowerCase();
+
 const Table = ({ children }) => <View style={styles.table}>{children}</View>;
 
 const TableHeader = ({ columns }) => (
@@ -242,13 +314,6 @@ const Card = ({ title, children }) => (
   </View>
 );
 
-const MiniRow = ({ label, value }) => (
-  <View style={styles.miniRow}>
-    <Text style={styles.miniLabel}>{label}</Text>
-    <Text style={styles.miniValue}>{value || "-"}</Text>
-  </View>
-);
-
 const Detailscreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
@@ -263,9 +328,21 @@ const Detailscreen = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const visibleFlagRegisters = useMemo(() => {
-    return flagRegisters.length > 0 ? flagRegisters : DEFAULT_FLAG_REGISTERS;
-  }, [flagRegisters]);
+  const visibleFlagRegisters =
+    flagRegisters.length > 0 ? flagRegisters : DEFAULT_FLAG_REGISTERS;
+
+  const hasAnyInterruptInstruction = instructions.some(hasInterruptDetails);
+
+  const extraInstructionInfoWidth = 90 + 90 + 90 + 90 + 100;
+  const interruptInfoWidth = hasAnyInterruptInstruction ? 90 + 90 + 90 : 0;
+
+  const instructionTableWidth =
+    78 +
+    82 +
+    extraInstructionInfoWidth +
+    interruptInfoWidth +
+    230 +
+    120;
 
   const fetchArchitectureDetails = useCallback(async () => {
     if (!architectureId) {
@@ -342,37 +419,31 @@ const Detailscreen = () => {
     [getInstructionAction]
   );
 
-  const getFormattedInstructionFormat = useCallback(
-    instruction => {
-      const rawFormat = getInstructionFormat(instruction);
-      if (!isUsefulValue(rawFormat)) return "-";
+  const getFormattedInstructionFormat = instruction => {
+    const rawFormat = getInstructionFormat(instruction);
+    if (!isUsefulValue(rawFormat)) return "-";
 
-      const rawText = String(rawFormat);
-      if (rawText === "3") return rawText;
+    const rawText = String(rawFormat);
+    if (rawText === "3") return rawText;
 
-      const dbCount = getDbOperandCount(instruction);
-      const inferredCount = Number.parseInt(getOperandCount(instruction), 10);
-      const operandCount = dbCount || inferredCount;
+    const dbCount = getDbOperandCount(instruction);
+    const inferredCount = Number.parseInt(getOperandCount(instruction), 10);
+    const operandCount = dbCount || inferredCount;
 
-      return operandCount > 0 ? rawText.padStart(operandCount, "0") : rawText;
-    },
-    [getOperandCount]
-  );
+    return operandCount > 0 ? rawText.padStart(operandCount, "0") : rawText;
+  };
 
-  const getOperandTypeByPosition = useCallback(
-    (instruction, position) => {
-      const count = Number.parseInt(getOperandCount(instruction), 10);
-      const emptyValue = position === 3 ? "N/A" : "-";
+  const getOperandTypeByPosition = (instruction, position) => {
+    const count = Number.parseInt(getOperandCount(instruction), 10);
+    const emptyValue = position === 3 ? "N/A" : "-";
 
-      if (Number.isNaN(count) || position > count) return emptyValue;
+    if (Number.isNaN(count) || position > count) return emptyValue;
 
-      const format = getFormattedInstructionFormat(instruction);
-      if (!format || format === "-" || format === "3") return emptyValue;
+    const format = getFormattedInstructionFormat(instruction);
+    if (!format || format === "-" || format === "3") return emptyValue;
 
-      return getOperandTypeName(format[position - 1]);
-    },
-    [getFormattedInstructionFormat, getOperandCount]
-  );
+    return getOperandTypeName(format[position - 1]);
+  };
 
   const getDestinationOperand = instruction => {
     const directValue = getTextValue(
@@ -422,34 +493,6 @@ const Detailscreen = () => {
     return sourceOperands.length ? sourceOperands.join(", ") : "-";
   };
 
-  const getInterruptSymbol = instruction => {
-    return getTextValue(
-      instruction,
-      ["interruptSymbol", "InterruptSymbol", "interrupt_symbol", "Interrupt", "interrupt"],
-      ""
-    );
-  };
-
-  const getInputRegister = instruction => {
-    return getTextValue(
-      instruction,
-      ["inputRegister", "InputRegister", "input_register", "InputReg", "inputReg"],
-      ""
-    );
-  };
-
-  const getOutputRegister = instruction => {
-    return getTextValue(
-      instruction,
-      ["outputRegister", "OutputRegister", "output_register", "OutputReg", "outputReg"],
-      ""
-    );
-  };
-
-  const hasInterruptDetails = instruction => {
-    return [getInterruptSymbol(instruction), getInputRegister(instruction), getOutputRegister(instruction)].some(isUsefulValue);
-  };
-
   const getAffectedFlags = instruction => {
     const apiFlags = getTextValue(instruction, ["affectedFlags", "AffectedFlags", "flags", "Flags"], "");
     if (apiFlags) return apiFlags;
@@ -462,6 +505,43 @@ const Detailscreen = () => {
       .filter(flag => flag && flag !== "-");
 
     return flags.length ? flags.join(", ") : "Zero, Carry, Sign, Overflow";
+  };
+
+  const getFlagBit = (instruction, flagName) => {
+    const affectedFlags = getAffectedFlags(instruction);
+    const normalizedFlags = normalizeText(affectedFlags);
+    const normalizedFlagName = normalizeText(flagName);
+
+    if (
+      normalizedFlags === "null" ||
+      normalizedFlags === "-" ||
+      normalizedFlags === "none"
+    ) {
+      return "0";
+    }
+
+    if (normalizedFlags.includes(normalizedFlagName)) {
+      return "1";
+    }
+
+    return "0";
+  };
+
+  const getInstructionName = instruction => {
+    return getTextValue(
+      instruction,
+      [
+        "instruction",
+        "Instruction",
+        "instructionType",
+        "InstructionType",
+        "group",
+        "Group",
+        "category",
+        "Category",
+      ],
+      getMnemonic(instruction)
+    );
   };
 
   const renderArchitectureRows = () => {
@@ -492,36 +572,72 @@ const Detailscreen = () => {
     ));
   };
 
-  const renderInstructionCard = (instruction, index) => (
-    <View key={pickValue(instruction, ["id", "Id"], index)} style={styles.instructionMiniCard}>
-      <View style={styles.instructionTopRow}>
-        <Text style={styles.mnemonicTitle}>{getMnemonic(instruction)}</Text>
+  const renderInstructionSetRow = (instruction, index) => (
+    <View
+      key={pickValue(instruction, ["id", "Id"], index)}
+      style={styles.instructionSetRow}
+    >
+      <Text style={[styles.instructionSetCell, styles.instructionCol]}>
+        {getInstructionName(instruction)}
+      </Text>
 
-        <View style={styles.opcodeBadge}>
-          <Text style={styles.opcodeText}>Opcode: {getOpcode(instruction)}</Text>
-        </View>
-      </View>
+      <Text style={[styles.instructionSetCell, styles.mnemonicCol]}>
+        {getMnemonic(instruction)}
+      </Text>
 
-      <View style={styles.miniTable}>
-        <MiniRow label="Mnemonic" value={getMnemonic(instruction)} />
-        <MiniRow label="Instruction Format" value={getFormattedInstructionFormat(instruction)} />
-        <MiniRow label="Micro Operation" value={getInstructionAction(instruction)} />
-        <MiniRow label="No. of Operands" value={getOperandCount(instruction)} />
-        <MiniRow label="Operand 1 Type" value={getOperandTypeByPosition(instruction, 1)} />
-        <MiniRow label="Operand 2 Type" value={getOperandTypeByPosition(instruction, 2)} />
-        <MiniRow label="Operand 3 Type" value={getOperandTypeByPosition(instruction, 3)} />
-        <MiniRow label="Destination" value={getDestinationOperand(instruction)} />
-        <MiniRow label="Source" value={getSourceOperand(instruction)} />
-        <MiniRow label="Example" value={getTextValue(instruction, ["example", "Example", "syntax", "Syntax", "format", "Format"])} />
-        <MiniRow label="Affected Flags" value={getAffectedFlags(instruction)} />
+      <Text style={[styles.instructionSetCell, styles.opTypeCol]}>
+        {getOperandTypeByPosition(instruction, 1)}
+      </Text>
 
-        {hasInterruptDetails(instruction) && (
-          <>
-            <MiniRow label="Interrupt" value={getInterruptSymbol(instruction)} />
-            <MiniRow label="Input Register" value={getInputRegister(instruction)} />
-            <MiniRow label="Output Register" value={getOutputRegister(instruction)} />
-          </>
-        )}
+      <Text style={[styles.instructionSetCell, styles.opTypeCol]}>
+        {getOperandTypeByPosition(instruction, 2)}
+      </Text>
+
+      <Text style={[styles.instructionSetCell, styles.opTypeCol]}>
+        {getOperandTypeByPosition(instruction, 3)}
+      </Text>
+
+      <Text style={[styles.instructionSetCell, styles.destinationCol]}>
+        {getDestinationOperand(instruction)}
+      </Text>
+
+      <Text style={[styles.instructionSetCell, styles.sourceCol]}>
+        {getSourceOperand(instruction)}
+      </Text>
+
+      {hasAnyInterruptInstruction && (
+        <>
+          <Text style={[styles.instructionSetCell, styles.interruptCol]}>
+            {hasInterruptDetails(instruction) ? getInterruptSymbol(instruction) : "-"}
+          </Text>
+
+          <Text style={[styles.instructionSetCell, styles.interruptCol]}>
+            {hasInterruptDetails(instruction) ? getInputRegister(instruction) : "-"}
+          </Text>
+
+          <Text style={[styles.instructionSetCell, styles.interruptCol]}>
+            {hasInterruptDetails(instruction) ? getOutputRegister(instruction) : "-"}
+          </Text>
+        </>
+      )}
+
+      <Text style={[styles.instructionSetCell, styles.descriptionCol]}>
+        {getInstructionAction(instruction)}
+      </Text>
+
+      <View style={styles.ccGroup}>
+        <Text style={[styles.instructionSetCell, styles.ccBitCol]}>
+          {getFlagBit(instruction, "Carry")}
+        </Text>
+        <Text style={[styles.instructionSetCell, styles.ccBitCol]}>
+          {getFlagBit(instruction, "Overflow")}
+        </Text>
+        <Text style={[styles.instructionSetCell, styles.ccBitCol]}>
+          {getFlagBit(instruction, "Sign")}
+        </Text>
+        <Text style={[styles.instructionSetCell, styles.ccBitCol]}>
+          {getFlagBit(instruction, "Zero")}
+        </Text>
       </View>
     </View>
   );
@@ -601,7 +717,107 @@ const Detailscreen = () => {
 
         <Card title="Instruction Set">
           {instructions.length > 0 ? (
-            instructions.map(renderInstructionCard)
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={true}
+              contentContainerStyle={styles.instructionSetScroll}
+            >
+              <View style={[styles.instructionSetTable, { minWidth: instructionTableWidth }]}>
+                <View style={styles.instructionSetTitleRow}>
+                  <Text style={styles.instructionSetTitleText}>Instruction Set</Text>
+                </View>
+
+                <View style={styles.groupHeaderRow}>
+                  <Text style={[styles.groupHeaderCell, styles.instructionCol]}></Text>
+                  <Text style={[styles.groupHeaderCell, styles.mnemonicCol]}></Text>
+
+                  <Text
+                    style={[
+                      styles.groupHeaderCell,
+                      { width: extraInstructionInfoWidth },
+                    ]}
+                  >
+                    Operand Details
+                  </Text>
+
+                  {hasAnyInterruptInstruction && (
+                    <Text
+                      style={[
+                        styles.groupHeaderCell,
+                        { width: interruptInfoWidth },
+                      ]}
+                    >
+                      Interrupt Details
+                    </Text>
+                  )}
+
+                  <Text style={[styles.groupHeaderCell, styles.descriptionCol]}>
+                    Description
+                  </Text>
+
+                  <Text style={[styles.groupHeaderCell, styles.ccGroupHeader]}>
+                    Affected Flags
+                  </Text>
+                </View>
+
+                <View style={styles.modeNameHeaderRow}>
+                  <Text style={[styles.instructionSetHeaderCell, styles.instructionCol]}>
+                    Instruction
+                  </Text>
+
+                  <Text style={[styles.instructionSetHeaderCell, styles.mnemonicCol]}>
+                    Mnemonic
+                  </Text>
+
+                  <Text style={[styles.instructionSetHeaderCell, styles.opTypeCol]}>
+                    Op1 Type
+                  </Text>
+
+                  <Text style={[styles.instructionSetHeaderCell, styles.opTypeCol]}>
+                    Op2 Type
+                  </Text>
+
+                  <Text style={[styles.instructionSetHeaderCell, styles.opTypeCol]}>
+                    Op3 Type
+                  </Text>
+
+                  <Text style={[styles.instructionSetHeaderCell, styles.destinationCol]}>
+                    Destination
+                  </Text>
+
+                  <Text style={[styles.instructionSetHeaderCell, styles.sourceCol]}>
+                    Source
+                  </Text>
+
+                  {hasAnyInterruptInstruction && (
+                    <>
+                      <Text style={[styles.instructionSetHeaderCell, styles.interruptCol]}>
+                        Interrupt
+                      </Text>
+
+                      <Text style={[styles.instructionSetHeaderCell, styles.interruptCol]}>
+                        Input Reg
+                      </Text>
+
+                      <Text style={[styles.instructionSetHeaderCell, styles.interruptCol]}>
+                        Output Reg
+                      </Text>
+                    </>
+                  )}
+
+                  <Text style={[styles.instructionSetHeaderCell, styles.descriptionCol]}></Text>
+
+                  <View style={styles.ccGroupHeaderRow}>
+                    <Text style={[styles.instructionSetHeaderCell, styles.ccBitCol]}>C</Text>
+                    <Text style={[styles.instructionSetHeaderCell, styles.ccBitCol]}>O</Text>
+                    <Text style={[styles.instructionSetHeaderCell, styles.ccBitCol]}>S</Text>
+                    <Text style={[styles.instructionSetHeaderCell, styles.ccBitCol]}>Z</Text>
+                  </View>
+                </View>
+
+                {instructions.map(renderInstructionSetRow)}
+              </View>
+            </ScrollView>
           ) : (
             <Text style={styles.emptyText}>No instructions found</Text>
           )}
@@ -624,7 +840,9 @@ const Detailscreen = () => {
                   <Cell blue style={styles.actionMnemonicCell}>
                     {getTextValue(action, ["mnemonic", "Mnemonic", "mnemonics", "Mnemonics"])}
                   </Cell>
-                  <Cell style={styles.actionCell}>{getTextValue(action, ["action", "Action", "operation", "Operation"])}</Cell>
+                  <Cell style={styles.actionCell}>
+                    {getTextValue(action, ["action", "Action", "operation", "Operation"])}
+                  </Cell>
                 </TableRow>
               ))
             ) : (
@@ -758,61 +976,139 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#64748B",
   },
-  instructionMiniCard: {
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    borderRadius: 10,
-    marginBottom: 12,
-    overflow: "hidden",
+  instructionSetScroll: {
+    paddingBottom: 8,
   },
-  instructionTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#E2E8F0",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  mnemonicTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: "#1E3A8A",
-  },
-  opcodeBadge: {
-    backgroundColor: "#DBEAFE",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  opcodeText: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#1E3A8A",
-  },
-  miniTable: {
+  instructionSetTable: {
+    borderWidth: 2,
+    borderColor: "#111827",
     backgroundColor: "white",
   },
-  miniRow: {
-    flexDirection: "row",
-    borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
-  },
-  miniLabel: {
-    width: "38%",
-    paddingVertical: 9,
-    paddingHorizontal: 8,
-    fontSize: 11,
-    fontWeight: "bold",
-    color: "#1E3A8A",
+  instructionSetTitleRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#111827",
+    paddingVertical: 4,
+    alignItems: "center",
     backgroundColor: "#F8FAFC",
   },
-  miniValue: {
-    width: "62%",
-    paddingVertical: 9,
-    paddingHorizontal: 8,
+  instructionSetTitleText: {
     fontSize: 11,
-    color: "#334155",
+    fontWeight: "900",
+    color: "#111827",
+  },
+  groupHeaderRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#111827",
+  },
+  modeNameHeaderRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#111827",
+  },
+  subHeaderRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#111827",
+  },
+  instructionSetRow: {
+    flexDirection: "row",
+    minHeight: 30,
+    borderBottomWidth: 1,
+    borderBottomColor: "#111827",
+  },
+  groupHeaderCell: {
+    paddingVertical: 5,
+    paddingHorizontal: 3,
+    fontSize: 9,
+    fontWeight: "900",
+    color: "#111827",
+    textAlign: "center",
+    textAlignVertical: "center",
+    borderRightWidth: 1,
+    borderRightColor: "#111827",
+  },
+  instructionSetHeaderCell: {
+    paddingVertical: 5,
+    paddingHorizontal: 3,
+    fontSize: 8,
+    fontWeight: "900",
+    color: "#111827",
+    textAlign: "center",
+    textAlignVertical: "center",
+    borderRightWidth: 1,
+    borderRightColor: "#111827",
+  },
+  instructionSetSubHeaderCell: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+    fontSize: 8,
+    fontWeight: "800",
+    color: "#111827",
+    textAlign: "center",
+    textAlignVertical: "center",
+    borderRightWidth: 1,
+    borderRightColor: "#111827",
+  },
+  instructionSetCell: {
+    paddingVertical: 5,
+    paddingHorizontal: 2,
+    fontSize: 8,
+    color: "#111827",
+    textAlign: "center",
+    textAlignVertical: "center",
+    borderRightWidth: 1,
+    borderRightColor: "#111827",
+  },
+  instructionCol: {
+    width: 78,
+    fontWeight: "800",
+  },
+  mnemonicCol: {
+    width: 82,
+    fontWeight: "800",
+  },
+  modeHeaderCol: {
+    width: 92,
+  },
+  modeColumnGroup: {
+    width: 92,
+    flexDirection: "row",
+  },
+  modeOpCol: {
+    width: 56,
+  },
+  modeHashCol: {
+    width: 36,
+  },
+  opTypeCol: {
+    width: 90,
+  },
+  destinationCol: {
+    width: 90,
+  },
+  sourceCol: {
+    width: 100,
+  },
+  interruptCol: {
+    width: 90,
+  },
+  descriptionCol: {
+    width: 230,
+  },
+  ccGroupHeader: {
+    width: 120,
+  },
+  ccGroupHeaderRow: {
+    width: 120,
+    flexDirection: "row",
+  },
+  ccGroup: {
+    width: 120,
+    flexDirection: "row",
+  },
+  ccBitCol: {
+    width: 30,
   },
   emptyText: {
     textAlign: "center",

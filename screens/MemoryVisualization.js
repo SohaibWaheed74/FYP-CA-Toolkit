@@ -11,15 +11,35 @@ import {
 import { ArchitectureContext } from "../context/ArchitectureContext";
 
 const MemoryVisualization = () => {
-  const { memoryBits, memorySize } = useContext(ArchitectureContext);
+  const { memoryBits, memorySize, stackValues } =
+    useContext(ArchitectureContext);
 
   const [selectedRows, setSelectedRows] = useState(4);
 
   const visibleMemoryBits =
     selectedRows === "full" ? memoryBits : memoryBits?.slice(0, selectedRows);
 
-  // Stack values from 14 to -1
-  const stackValues = Array.from({ length: 16 }, (_, i) => 14 - i);
+  // Stack values from context
+  const displayStackValues =
+    stackValues && stackValues.length > 0
+      ? stackValues
+      : Array.from({ length: 16 }, () => "");
+
+  // SP should point to TOP pushed value, not next empty box
+  const usedStackIndexes = displayStackValues
+    .map((value, index) => ({
+      value,
+      index,
+    }))
+    .filter(
+      (item) =>
+        item.value !== "" && item.value !== null && item.value !== undefined
+    );
+
+  const stackPointerIndex =
+    usedStackIndexes.length > 0
+      ? Math.max(...usedStackIndexes.map((item) => item.index))
+      : -1;
 
   return (
     <ScrollView
@@ -69,9 +89,6 @@ const MemoryVisualization = () => {
 
       <View style={styles.card}>
         {memoryBits && memoryBits.length > 0 ? (
-          //Display all memory acc to memory size
-          // memoryBits.map((rowBits, rowIndex) => {
-          // Display only selected rows 4 or 8 or full
           visibleMemoryBits.map((rowBits, rowIndex) => {
             const address = `0x${rowIndex
               .toString(16)
@@ -82,7 +99,18 @@ const MemoryVisualization = () => {
               <View key={rowIndex} style={styles.memoryRow}>
                 <Text style={styles.addressText}>{address}</Text>
 
-                <View style={styles.memoryGrid}>
+                {/* 
+                  Horizontal ScrollView:
+                  If rowBits has more than 8 bits, it will show all bits
+                  in the same address row and user can scroll horizontally.
+                */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={true}
+                  style={styles.bitScrollView}
+                  contentContainerStyle={styles.memoryGrid}
+                  nestedScrollEnabled={true}
+                >
                   {rowBits.map((bit, colIndex) => (
                     <View
                       key={colIndex}
@@ -94,32 +122,7 @@ const MemoryVisualization = () => {
                       ]}
                     />
                   ))}
-                </View>
-
-                {/* <View style={styles.memoryGrid}>
-                  {rowBits.map((bit, colIndex) => {
-                    const bitValue = Number(bit);
-
-                    return (
-                      <View
-                        key={colIndex}
-                        style={[
-                          styles.memoryCell,
-                          bitValue === 1 ? styles.bitOneCell : styles.bitZeroCell,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.bitText,
-                            bitValue === 1 ? styles.bitOneText : styles.bitZeroText,
-                          ]}
-                        >
-                          {bitValue}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </View> */}
+                </ScrollView>
               </View>
             );
           })
@@ -134,6 +137,7 @@ const MemoryVisualization = () => {
             Total Memory: {memorySize} Bytes
           </Text>
         )}
+
         {/* Memory Color Legend */}
         <View style={styles.legendContainer}>
           <View style={styles.legendItem}>
@@ -153,17 +157,34 @@ const MemoryVisualization = () => {
 
       <View style={styles.stackWrapper}>
         <View style={styles.stackCard}>
-          {stackValues.map((value, index) => (
-            <View key={index} style={styles.stackRow}>
-              <Text style={styles.stackIndex}>{value}</Text>
-              <TextInput style={styles.stackInput} editable={false} />
-            </View>
-          ))}
+          {displayStackValues
+            .map((value, index) => ({
+              index,
+              value,
+            }))
+            .reverse()
+            .map((item) => {
+              const isStackPointer = stackPointerIndex === item.index;
 
-          {/* Stack Pointer Label */}
-          <View style={styles.spRow}>
-            <Text style={styles.spText}>SP</Text>
-          </View>
+              return (
+                <View key={item.index} style={styles.stackRow}>
+                  <Text style={styles.stackIndex}>{item.index}</Text>
+
+                  <TextInput
+                    style={styles.stackInput}
+                    editable={false}
+                    value={String(item.value || "")}
+                    textAlign="center"
+                  />
+
+                  <View style={styles.spColumn}>
+                    <Text style={isStackPointer ? styles.spText : styles.spHidden}>
+                      {isStackPointer ? "SP" : ""}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
         </View>
       </View>
     </ScrollView>
@@ -259,52 +280,32 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  memoryGrid: {
-    flexDirection: "row",
-    alignItems: "center",
+  bitScrollView: {
     flex: 1,
   },
 
-  /* ================= When display 1 and 0 in box with color ================= */
+  memoryGrid: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingRight: 10,
+  },
 
-  // memoryGrid: {
-  //   flexDirection: "row",
-  //   flexWrap: "wrap",
-  //   gap: 4,
-  // },
+  memoryCell: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: "#1e3a8a",
+    margin: 2,
+  },
 
-  // memoryCell: {
-  //   width: 24,
-  //   height: 24,
-  //   borderRadius: 5,
-  //   borderWidth: 1,
-  //   borderColor: "#0B1F3A",
-  //   justifyContent: "center",
-  //   alignItems: "center",
-  // },
+  bitOneCell: {
+    backgroundColor: "#1e3a8a",
+  },
 
-  // bitOneCell: {
-  //   backgroundColor: "#1e3a8a", // 1 ka box blue
-  // },
-
-  // bitZeroCell: {
-  //   backgroundColor: "#eae6e6", // 0 ka box white
-  // },
-
-  // bitText: {
-  //   fontSize: 11,
-  //   fontWeight: "700",
-  // },
-
-  // bitOneText: {
-  //   color: "#FFFFFF", // 1 white text
-  // },
-
-  // bitZeroText: {
-  //   color: "#1e3a8a", // 0 navy text
-  // },
-
-  /* ================= Comment till here ================= */
+  bitZeroCell: {
+    backgroundColor: "#FFFFFF",
+  },
 
   emptyText: {
     fontSize: 13,
@@ -321,25 +322,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  /* ================= When display only color in memory box instead of 1 and 0 ================= */
-
-  memoryCell: {
-    width: 22,
-    height: 22,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: "#1e3a8a",
-    margin: 2,
-  },
-
-  bitOneCell: {
-    backgroundColor: "#1e3a8a", // navy blue
-  },
-
-  bitZeroCell: {
-    backgroundColor: "#FFFFFF", // white
-  },
-
   /* ================= STACK MEMORY ================= */
 
   stackWrapper: {
@@ -351,7 +333,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 15,
     paddingHorizontal: 10,
-    width: "65%",
+    width: "75%",
     marginBottom: 25,
   },
 
@@ -371,25 +353,42 @@ const styles = StyleSheet.create({
   },
 
   stackInput: {
-    width: 90,
-    height: 30,
+    width: 100,
+    height: 36,
     borderWidth: 1,
     borderColor: "#b0c4de",
     borderRadius: 6,
     backgroundColor: "#ffffff",
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 0,
+    color: "#1e3a8a",
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
+    textAlignVertical: "center",
+    includeFontPadding: false,
   },
 
-  spRow: {
-    alignItems: "flex-end",
-    marginTop: 5,
-    paddingRight: 10,
+  spColumn: {
+    width: 35,
+    marginLeft: 6,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   spText: {
     fontSize: 12,
     color: "#1e3a8a",
-    fontWeight: "600",
+    fontWeight: "700",
+    textAlign: "center",
+  },
+
+  spHidden: {
+    fontSize: 12,
+    color: "transparent",
+    fontWeight: "700",
+    textAlign: "center",
+    opacity: 0,
   },
 
   legendContainer: {

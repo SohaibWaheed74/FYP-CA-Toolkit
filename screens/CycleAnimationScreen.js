@@ -474,9 +474,7 @@ const CycleAnimationScreen = ({
             <View style={styles.helpBox}>
               <Text style={styles.helpTitle}>How to read this?</Text>
               <Text style={styles.helpText}>
-                Har T-state ek clock cycle hai. Fetch instruction load karta
-                hai, Decode operands ko samajhta hai, aur Execute action
-                perform karta hai.
+                Every T-state is one clock cycle. Fetch loads the instruction, Decode understands the operands, and Execute performs the action.
               </Text>
             </View>
           </ScrollView>

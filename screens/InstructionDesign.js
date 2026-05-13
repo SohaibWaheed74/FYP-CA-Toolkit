@@ -105,6 +105,8 @@ export default function InstructionDesign() {
           Name: reg.Name ?? reg.name ?? "",
           Action: isFlag ? reg.Action ?? reg.action ?? "" : "",
           IsFlagRegister: isFlag,
+          // Safely passing the RegisterCode generated in the previous screen
+          RegisterCode: reg.RegisterCode ?? reg.registerCode ?? null,
         };
       });
     }
@@ -114,12 +116,16 @@ export default function InstructionDesign() {
       Name: typeof gp === "string" ? gp : gp.Name ?? gp.name ?? "",
       Action: "",
       IsFlagRegister: false,
+      // Safely extracting from fallback
+      RegisterCode: gp.RegisterCode ?? gp.registerCode ?? null,
     }));
 
     const flagPayload = (flagRegisters || []).map((flag) => ({
       Name: flag.Name ?? flag.name ?? "",
       Action: flag.Action ?? flag.action ?? "",
       IsFlagRegister: true,
+      // Safely extracting from fallback
+      RegisterCode: flag.RegisterCode ?? flag.registerCode ?? null,
     }));
 
     return [...gpPayload, ...flagPayload];
