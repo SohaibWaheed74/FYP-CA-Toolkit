@@ -23,13 +23,12 @@ import { calculateCountCycleByArchitectureId } from "../utils/CountCycle";
 import { buildCycleAnimationTrace } from "../utils/cycleAnimationTrace";
 import { getArchitectureDetails } from "../api/architectureApi";
 
-// If CycleAnimationScreen.js is in the same folder as EditorScreen, keep this:
 import CycleAnimationScreen from "./CycleAnimationScreen";
 
-// If CycleAnimationScreen.js is inside src/components, use this instead:
-// import CycleAnimationScreen from "../components/CycleAnimationScreen";
-
 const EditorScreen = () => {
+  // =========================
+  // ALL HOOKS AT TOP
+  // =========================
   const navigation = useNavigation();
   const route = useRoute();
   const scrollRef = useRef(null);
@@ -38,15 +37,6 @@ const EditorScreen = () => {
     selectedArchitecture: contextArchitecture,
     updateMemoryFromExecutionResult,
   } = useContext(ArchitectureContext);
-
-  const selectedArchitecture =
-    route?.params?.architecture || contextArchitecture;
-
-  const architectureId =
-    selectedArchitecture?.ArchitectureID ||
-    selectedArchitecture?.architectureID ||
-    selectedArchitecture?.architectureId ||
-    selectedArchitecture?.id;
 
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -57,10 +47,28 @@ const EditorScreen = () => {
   const [fileNameInput, setFileNameInput] = useState("");
   const [cycles, setCycles] = useState(null);
 
+  const [hintModalVisible, setHintModalVisible] = useState(false);
+  const [hintLoading, setHintLoading] = useState(false);
+  const [hintCode, setHintCode] = useState("");
+  const [hintMnemonics, setHintMnemonics] = useState([]);
+  const [hintRegisters, setHintRegisters] = useState([]);
+
   const [animationVisible, setAnimationVisible] = useState(false);
   const [cycleTrace, setCycleTrace] = useState([]);
   const [animationArchitectureName, setAnimationArchitectureName] =
     useState("Selected Architecture");
+
+  // =========================
+  // SELECTED ARCHITECTURE
+  // =========================
+  const selectedArchitecture =
+    route?.params?.architecture || contextArchitecture;
+
+  const architectureId =
+    selectedArchitecture?.ArchitectureID ||
+    selectedArchitecture?.architectureID ||
+    selectedArchitecture?.architectureId ||
+    selectedArchitecture?.id;
 
   const scrollToEditor = () => {
     setTimeout(() => {
@@ -69,6 +77,297 @@ const EditorScreen = () => {
         animated: true,
       });
     }, 300);
+  };
+
+  // =========================
+  // HINT HELPERS
+  // =========================
+  const asArray = (value) => {
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    if (value?.Instructions && Array.isArray(value.Instructions)) {
+      return value.Instructions;
+    }
+
+    if (value?.instructions && Array.isArray(value.instructions)) {
+      return value.instructions;
+    }
+
+    if (value?.Registers && Array.isArray(value.Registers)) {
+      return value.Registers;
+    }
+
+    if (value?.registers && Array.isArray(value.registers)) {
+      return value.registers;
+    }
+
+    return [];
+  };
+
+  const getArchitectureName = () => {
+    return (
+      selectedArchitecture?.Name ||
+      selectedArchitecture?.name ||
+      selectedArchitecture?.ArchitectureName ||
+      selectedArchitecture?.architectureName ||
+      selectedArchitecture?.Architecture?.Name ||
+      selectedArchitecture?.architecture?.name ||
+      "Selected Architecture"
+    );
+  };
+
+  const getUniqueList = (list) => {
+    return Array.from(
+      new Set(
+        list
+          .map((item) => String(item || "").trim())
+          .filter((item) => item.length > 0)
+      )
+    );
+  };
+
+  const getMnemonicFromInstruction = (instruction) => {
+    return (
+      instruction?.Mnemonic ||
+      instruction?.mnemonic ||
+      instruction?.Name ||
+      instruction?.name ||
+      instruction?.InstructionName ||
+      instruction?.instructionName ||
+      instruction?.Operation ||
+      instruction?.operation ||
+      ""
+    );
+  };
+
+  const getRegisterName = (register, index) => {
+    return (
+      register?.RegisterName ||
+      register?.registerName ||
+      register?.Name ||
+      register?.name ||
+      register?.RegisterCode ||
+      register?.registerCode ||
+      `R${index + 1}`
+    );
+  };
+
+  const collectRegistersFromSources = (details) => {
+    const sourceRegisters = [
+      ...asArray(selectedArchitecture?.Registers),
+      ...asArray(selectedArchitecture?.registers),
+      ...asArray(selectedArchitecture?.GeneralRegisters),
+      ...asArray(selectedArchitecture?.generalRegisters),
+      ...asArray(selectedArchitecture?.ArchitectureRegisters),
+      ...asArray(selectedArchitecture?.architectureRegisters),
+
+      ...asArray(details?.Registers),
+      ...asArray(details?.registers),
+      ...asArray(details?.GeneralRegisters),
+      ...asArray(details?.generalRegisters),
+      ...asArray(details?.ArchitectureRegisters),
+      ...asArray(details?.architectureRegisters),
+
+      ...asArray(details?.Architecture?.Registers),
+      ...asArray(details?.architecture?.registers),
+    ];
+
+    const names = sourceRegisters.map((reg, index) =>
+      getRegisterName(reg, index)
+    );
+
+    const uniqueNames = getUniqueList(names);
+
+    if (uniqueNames.length > 0) {
+      return uniqueNames;
+    }
+
+    return ["R1", "R2", "R3", "R4"];
+  };
+
+  const collectMnemonicsFromSources = (instructionsFromApi, details) => {
+    const sourceInstructions = [
+      ...asArray(instructionsFromApi),
+      ...asArray(instructionsFromApi?.Instructions),
+      ...asArray(instructionsFromApi?.instructions),
+
+      ...asArray(selectedArchitecture?.Instructions),
+      ...asArray(selectedArchitecture?.instructions),
+
+      ...asArray(details?.Instructions),
+      ...asArray(details?.instructions),
+      ...asArray(details?.Architecture?.Instructions),
+      ...asArray(details?.architecture?.instructions),
+    ];
+
+    const names = sourceInstructions.map((instruction) =>
+      getMnemonicFromInstruction(instruction)
+    );
+
+    return getUniqueList(names);
+  };
+
+  const buildExampleCodeFromArchitecture = (mnemonics, registers) => {
+    const upperMnemonics = mnemonics.map((m) => String(m).toUpperCase());
+
+    const findMnemonic = (possibleNames) => {
+      for (const name of possibleNames) {
+        const index = upperMnemonics.findIndex(
+          (mnemonic) => mnemonic === name.toUpperCase()
+        );
+
+        if (index !== -1) {
+          return mnemonics[index];
+        }
+      }
+
+      return null;
+    };
+
+    const r1 = registers[0] || "R1";
+    const r2 = registers[1] || "R2";
+    const r3 = registers[2] || "R3";
+    const r4 = registers[3] || "R4";
+
+    const mov = findMnemonic(["MOV", "MOVE", "SET"]);
+    const add = findMnemonic(["ADD"]);
+    const sub = findMnemonic(["SUB"]);
+    const mul = findMnemonic(["MUL"]);
+    const div = findMnemonic(["DIV"]);
+    const push = findMnemonic(["PUSH"]);
+    const pop = findMnemonic(["POP"]);
+    const store = findMnemonic(["STORE", "ST"]);
+    const load = findMnemonic(["LOAD", "LD"]);
+    const input = findMnemonic(["IN", "INPUT"]);
+    const output = findMnemonic(["OUT", "OUTPUT"]);
+
+    const lines = [];
+
+    if (mov) {
+      lines.push(`${mov} ${r1},10`);
+      lines.push(`${mov} ${r2},20`);
+    }
+
+    if (add && mov) {
+      lines.push(`${add} ${r3},${r1},${r2}`);
+    }
+
+    if (sub && mov) {
+      lines.push(`${sub} ${r4},${r2},${r1}`);
+    }
+
+    if (mul && mov) {
+      lines.push(`${mul} ${r3},${r1},${r2}`);
+    }
+
+    if (div && mov) {
+      lines.push(`${div} ${r4},${r2},${r1}`);
+    }
+
+    if (store) {
+      lines.push(`${store} [50],${r1}`);
+    }
+
+    if (load) {
+      lines.push(`${load} ${r3},[50]`);
+    }
+
+    if (push) {
+      lines.push(`${push} ${r1}`);
+      lines.push(`${push} ${r2}`);
+    }
+
+    if (pop) {
+      lines.push(`${pop} ${r3}`);
+    }
+
+    if (input) {
+      lines.push(`${input} ${r1}`);
+    }
+
+    if (output) {
+      lines.push(`${output} ${r1}`);
+    }
+
+    if (lines.length > 0) {
+      return lines.join("\n");
+    }
+
+    if (mnemonics.length > 0) {
+      return `${mnemonics[0]} ${r1},10`;
+    }
+
+    return "";
+  };
+
+  // =========================
+  // HINT BUTTON
+  // =========================
+  const handleHint = async () => {
+    if (!architectureId) {
+      Alert.alert("Error", "Please select an architecture first.");
+      return;
+    }
+
+    try {
+      setHintLoading(true);
+
+      let instructionsFromApi = [];
+      let architectureDetails = null;
+
+      try {
+        instructionsFromApi = await getInstructionsByArchitectureId(
+          architectureId
+        );
+      } catch (instructionError) {
+        console.log("Hint Instructions Fetch Error:", instructionError);
+      }
+
+      try {
+        architectureDetails = await getArchitectureDetails(architectureId);
+      } catch (detailsError) {
+        console.log("Hint Architecture Details Error:", detailsError);
+      }
+
+      const registers = collectRegistersFromSources(architectureDetails);
+      const mnemonics = collectMnemonicsFromSources(
+        instructionsFromApi,
+        architectureDetails
+      );
+
+      const generatedCode = buildExampleCodeFromArchitecture(
+        mnemonics,
+        registers
+      );
+
+      setHintRegisters(registers);
+      setHintMnemonics(mnemonics);
+      setHintCode(generatedCode);
+      setHintModalVisible(true);
+    } catch (err) {
+      Alert.alert(
+        "Error",
+        err?.message || err?.toString() || "Failed to generate hint"
+      );
+    } finally {
+      setHintLoading(false);
+    }
+  };
+
+  const useHintCode = () => {
+    if (!hintCode.trim()) {
+      Alert.alert("No Example", "No executable example code generated.");
+      return;
+    }
+
+    setCode(hintCode);
+    setHintModalVisible(false);
+
+    setTimeout(() => {
+      scrollToEditor();
+    }, 100);
   };
 
   // =========================
@@ -312,103 +611,101 @@ const EditorScreen = () => {
   };
 
   // =========================
-// CYCLE ANIMATION
-// =========================
-const handleCycleAnimation = async () => {
-  if (!code.trim()) {
-    setError("Please write some assembly code first.");
-    setCycles(null);
-    return;
-  }
-
-  if (!architectureId) {
-    setError("No architecture selected.");
-    setCycles(null);
-    return;
-  }
-
-  try {
-    setError("");
-
-    const programLines = code
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-
-    const countResult = await calculateCountCycleByArchitectureId({
-      code,
-      architectureId,
-      getInstructionsByArchitectureId,
-      architecture: selectedArchitecture || {},
-    });
-
-    let architectureDetails = selectedArchitecture || {};
-
-    try {
-      const details = await getArchitectureDetails(architectureId);
-
-      architectureDetails = {
-        ...architectureDetails,
-        ...details,
-      };
-
-      setAnimationArchitectureName(
-        details?.architecture?.name ||
-          details?.ArchitectureName ||
-          details?.name ||
-          selectedArchitecture?.ArchitectureName ||
-          selectedArchitecture?.name ||
-          "Selected Architecture"
-      );
-    } catch (detailsError) {
-      console.log("Architecture details for animation failed:", detailsError);
-
-      setAnimationArchitectureName(
-        selectedArchitecture?.ArchitectureName ||
-          selectedArchitecture?.name ||
-          "Selected Architecture"
-      );
+  // CYCLE ANIMATION
+  // =========================
+  const handleCycleAnimation = async () => {
+    if (!code.trim()) {
+      setError("Please write some assembly code first.");
+      setCycles(null);
+      return;
     }
 
-    // Backend result sirf final flags sync ke liye use hoga.
-    // Registers animation logic ke according hi rahenge, default 0 se start.
-    let backendExecutionResult = null;
+    if (!architectureId) {
+      setError("No architecture selected.");
+      setCycles(null);
+      return;
+    }
 
     try {
-      backendExecutionResult = await executeProgram(
+      setError("");
+
+      const programLines = code
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+
+      const countResult = await calculateCountCycleByArchitectureId({
+        code,
         architectureId,
-        programLines
-      );
-    } catch (executionError) {
-      console.log(
-        "Backend execution for animation final flags failed:",
-        executionError
-      );
+        getInstructionsByArchitectureId,
+        architecture: selectedArchitecture || {},
+      });
+
+      let architectureDetails = selectedArchitecture || {};
+
+      try {
+        const details = await getArchitectureDetails(architectureId);
+
+        architectureDetails = {
+          ...architectureDetails,
+          ...details,
+        };
+
+        setAnimationArchitectureName(
+          details?.architecture?.name ||
+            details?.ArchitectureName ||
+            details?.name ||
+            selectedArchitecture?.ArchitectureName ||
+            selectedArchitecture?.name ||
+            "Selected Architecture"
+        );
+      } catch (detailsError) {
+        console.log("Architecture details for animation failed:", detailsError);
+
+        setAnimationArchitectureName(
+          selectedArchitecture?.ArchitectureName ||
+            selectedArchitecture?.name ||
+            "Selected Architecture"
+        );
+      }
+
+      let backendExecutionResult = null;
+
+      try {
+        backendExecutionResult = await executeProgram(
+          architectureId,
+          programLines
+        );
+      } catch (executionError) {
+        console.log(
+          "Backend execution for animation final flags failed:",
+          executionError
+        );
+      }
+
+      const trace = buildCycleAnimationTrace({
+        countResult,
+        architecture: architectureDetails,
+        executionResult: backendExecutionResult,
+      });
+
+      setCycles(countResult.totalCycles);
+      setCycleTrace(trace);
+      setAnimationVisible(true);
+
+      console.log("Cycle Animation Trace:", JSON.stringify(trace, null, 2));
+    } catch (err) {
+      const message =
+        err?.message || err?.toString() || "Failed to load cycle animation";
+
+      setCycles(null);
+      setCycleTrace([]);
+      setAnimationVisible(false);
+      setError(message);
+
+      console.log("Cycle Animation Error:", err);
     }
-
-    const trace = buildCycleAnimationTrace({
-      countResult,
-      architecture: architectureDetails,
-      executionResult: backendExecutionResult,
-    });
-
-    setCycles(countResult.totalCycles);
-    setCycleTrace(trace);
-    setAnimationVisible(true);
-
-    console.log("Cycle Animation Trace:", JSON.stringify(trace, null, 2));
-  } catch (err) {
-    const message =
-      err?.message || err?.toString() || "Failed to load cycle animation";
-
-    setCycles(null);
-    setCycleTrace([]);
-    setAnimationVisible(false);
-    setError(message);
-
-    console.log("Cycle Animation Error:", err);
-  }
-};
+  };
 
   // =========================
   // OPEN FILE FROM DATABASE
@@ -484,7 +781,22 @@ const handleCycleAnimation = async () => {
               <Text style={styles.primaryText}>Run Step</Text>
             </TouchableOpacity>
 
-            {/* SAVE BUTTON BLUE */}
+            <TouchableOpacity
+              style={styles.blueToolBtn}
+              onPress={handleHint}
+              disabled={hintLoading}
+            >
+              <View style={styles.iconTextRow}>
+                {hintLoading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Ionicons name="bulb-outline" size={14} color="#FFFFFF" />
+                )}
+
+                <Text style={styles.blueToolText}>Hint</Text>
+              </View>
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.blueToolBtn} onPress={handleSave}>
               <View style={styles.iconTextRow}>
                 <Ionicons name="save-outline" size={14} color="#FFFFFF" />
@@ -492,7 +804,6 @@ const handleCycleAnimation = async () => {
               </View>
             </TouchableOpacity>
 
-            {/* OPEN BUTTON BLUE */}
             <TouchableOpacity style={styles.blueToolBtn} onPress={handleOpen}>
               <View style={styles.iconTextRow}>
                 <Ionicons
@@ -511,12 +822,12 @@ const handleCycleAnimation = async () => {
               <Text style={styles.primaryText}>Count Cycles</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={styles.primaryBtn}
               onPress={handleCycleAnimation}
             >
               <Text style={styles.primaryText}>Animation</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
 
           {/* COMPARE */}
@@ -623,7 +934,50 @@ const handleCycleAnimation = async () => {
         </View>
       </Modal>
 
-      {/* CYCLE ANIMATION SCREEN */}
+      {/* HINT MODAL */}
+      <Modal visible={hintModalVisible} transparent animationType="slide">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.hintModalContainer}>
+            <Text style={styles.modalTitle}>Architecture Hint</Text>
+
+            <Text style={styles.hintInfoText}>
+              Architecture: {getArchitectureName()}
+            </Text>
+
+            <Text style={styles.hintInfoText}>
+              Registers:{" "}
+              {hintRegisters.length > 0 ? hintRegisters.join(", ") : "N/A"}
+            </Text>
+
+            <Text style={styles.hintInfoText}>
+              Mnemonics:{" "}
+              {hintMnemonics.length > 0 ? hintMnemonics.join(", ") : "N/A"}
+            </Text>
+
+            <Text style={styles.hintCodeTitle}>Example Code</Text>
+
+            <ScrollView style={styles.hintCodeBox}>
+              <Text style={styles.hintCodeText}>
+                {hintCode || "No example code generated for this architecture."}
+              </Text>
+            </ScrollView>
+
+            <View style={styles.modalBtns}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setHintModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Close</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={useHintCode}>
+                <Text style={styles.modalSaveText}>Use Example</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <CycleAnimationScreen
         visible={animationVisible}
         onClose={() => setAnimationVisible(false)}
@@ -803,6 +1157,14 @@ const styles = StyleSheet.create({
     width: "80%",
   },
 
+  hintModalContainer: {
+    backgroundColor: "#fff",
+    padding: 20,
+    borderRadius: 10,
+    width: "88%",
+    maxHeight: "82%",
+  },
+
   modalTitle: {
     marginBottom: 10,
     fontWeight: "600",
@@ -826,6 +1188,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginTop: 12,
   },
 
   modalCancelBtn: {
@@ -850,6 +1213,37 @@ const styles = StyleSheet.create({
   modalSaveText: {
     color: "#FFFFFF",
     fontWeight: "700",
+  },
+
+  hintInfoText: {
+    fontSize: 12,
+    color: "#334155",
+    marginBottom: 6,
+    fontWeight: "600",
+  },
+
+  hintCodeTitle: {
+    fontSize: 13,
+    color: "#1F3C88",
+    fontWeight: "800",
+    marginTop: 8,
+    marginBottom: 6,
+  },
+
+  hintCodeBox: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E1E7F5",
+    borderRadius: 8,
+    padding: 10,
+    maxHeight: 220,
+  },
+
+  hintCodeText: {
+    fontFamily: "monospace",
+    fontSize: 13,
+    color: "#111827",
+    lineHeight: 20,
   },
 
   fileItem: {

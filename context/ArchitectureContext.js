@@ -1,5 +1,3 @@
-// showing only 8 bit memory values if values increased then showing full memory values like 12 bit values
-
 import React, {
   createContext,
   useCallback,
@@ -12,8 +10,14 @@ export const ArchitectureContext = createContext({
   setSelectedArchitecture: () => {},
 
   memorySize: 0,
+  stackSize: 16,
+
   memoryBits: [],
   stackValues: [],
+  stackPointer: 0,
+
+  instructionDetails: [],
+  latestExecutionResult: null,
 
   initializeMemory: () => {},
   clearMemory: () => {},
@@ -21,89 +25,170 @@ export const ArchitectureContext = createContext({
   updateMemoryFromExecutionResult: () => {},
 });
 
+const DEFAULT_MEMORY_SIZE = 128;
 const DEFAULT_STACK_SIZE = 16;
+const CODE_SEGMENT_LIMIT = 100;
 
 const createEmptyMemory = (size) => {
-  const safeSize = Number(size) > 0 ? Number(size) : 0;
+  const safeSize = Number(size) > 0 ? Number(size) : DEFAULT_MEMORY_SIZE;
 
   return Array.from({ length: safeSize }, () =>
     Array.from({ length: 8 }, () => 0)
   );
 };
 
-const createEmptyStack = (size = DEFAULT_STACK_SIZE) => {
+const createEmptyStack = (size) => {
   const safeSize = Number(size) > 0 ? Number(size) : DEFAULT_STACK_SIZE;
 
   return Array.from({ length: safeSize }, () => "");
 };
 
-// If value is 8-bit or less, show 8 bits.
-// If value exceeds 8-bit, show full binary.
 const numberToBitArray = (value) => {
   const num = Number(value) || 0;
 
-  // Negative values ko simple 8-bit signed style me handle karega
-  // Example: -1 => 11111111
-  if (num < 0) {
-    const byteValue = ((num % 256) + 256) % 256;
+  // Keep value inside 1 byte range: 0 to 255
+  const byteValue = ((num % 256) + 256) % 256;
 
-    return Array.from({ length: 8 }, (_, index) => {
-      const bitPosition = 7 - index;
-      return (byteValue >> bitPosition) & 1;
-    });
-  }
+  return Array.from({ length: 8 }, (_, index) => {
+    const bitPosition = 7 - index;
+    return (byteValue >> bitPosition) & 1;
+  });
+};
 
-  const binary = num.toString(2);
+const binaryToTwoBytes = (binaryFormat) => {
+  const cleanBinary = String(binaryFormat || "")
+    .replace(/\s/g, "")
+    .padStart(16, "0")
+    .slice(-16);
 
-  // Example: 45 => 00101101
-  if (binary.length <= 8) {
-    return binary.padStart(8, "0").split("").map(Number);
-  }
+  const firstByte = cleanBinary.slice(0, 8).split("").map(Number);
+  const secondByte = cleanBinary.slice(8, 16).split("").map(Number);
 
-  // Example: 3000 => 101110111000
-  return binary.split("").map(Number);
+  return {
+    firstByte,
+    secondByte,
+  };
 };
 
 export const ArchitectureProvider = ({ children }) => {
   const [selectedArchitecture, setSelectedArchitecture] = useState(null);
 
   const [memorySize, setMemorySize] = useState(0);
+  const [stackSize, setStackSize] = useState(DEFAULT_STACK_SIZE);
+
   const [memoryBits, setMemoryBits] = useState([]);
-  const [stackValues, setStackValues] = useState(() =>
+  const [stackValues, setStackValues] = useState(
     createEmptyStack(DEFAULT_STACK_SIZE)
   );
 
-  // Use button press hone par DB ke MemorySize se empty memory create hogi
-  const initializeMemory = useCallback((size, stackSize = DEFAULT_STACK_SIZE) => {
-    const safeSize = Number(size) > 0 ? Number(size) : 0;
-    const safeStackSize =
-      Number(stackSize) > 0 ? Number(stackSize) : DEFAULT_STACK_SIZE;
+  const [stackPointer, setStackPointer] = useState(0);
+  const [instructionDetails, setInstructionDetails] = useState([]);
+  const [latestExecutionResult, setLatestExecutionResult] = useState(null);
 
-    setMemorySize(safeSize);
-    setMemoryBits(createEmptyMemory(safeSize));
+  const initializeMemory = useCallback((size, stackSizeFromDb) => {
+    const safeMemorySize =
+      Number(size) > 0 ? Number(size) : DEFAULT_MEMORY_SIZE;
+
+    const safeStackSize =
+      Number(stackSizeFromDb) > 0
+        ? Number(stackSizeFromDb)
+        : DEFAULT_STACK_SIZE;
+
+    setMemorySize(safeMemorySize);
+    setStackSize(safeStackSize);
+
+    setMemoryBits(createEmptyMemory(safeMemorySize));
     setStackValues(createEmptyStack(safeStackSize));
+
+    setStackPointer(0);
+    setInstructionDetails([]);
+    setLatestExecutionResult(null);
   }, []);
 
-  // Agar architecture change ho ya memory reset karni ho
   const clearMemory = useCallback(() => {
     setSelectedArchitecture(null);
+
     setMemorySize(0);
+    setStackSize(DEFAULT_STACK_SIZE);
+
     setMemoryBits([]);
     setStackValues(createEmptyStack(DEFAULT_STACK_SIZE));
+
+    setStackPointer(0);
+    setInstructionDetails([]);
+    setLatestExecutionResult(null);
   }, []);
 
-  // Backend MemorySummary se memory update hogi
-  // Example: MemorySummary = { "0": 45, "2": 3000 }
+  const updateInstructionDetailsInMemory = useCallback((details) => {
+    if (!Array.isArray(details)) return;
+
+    setInstructionDetails(details);
+
+    setMemoryBits((prevMemory) => {
+      const updatedMemory =
+        Array.isArray(prevMemory) && prevMemory.length > 0
+          ? prevMemory.map((row) => [...row])
+          : createEmptyMemory(DEFAULT_MEMORY_SIZE);
+
+      details.forEach((instruction, index) => {
+        /*
+          First 100 addresses are for instruction format.
+          1 instruction = 16 bits = 2 memory addresses.
+          So 50 instructions fit in first 100 addresses.
+        */
+        if (index >= 50) return;
+
+        const binaryFormat =
+          instruction.BinaryFormat ||
+          instruction.binaryFormat ||
+          "";
+
+        const { firstByte, secondByte } = binaryToTwoBytes(binaryFormat);
+
+        const firstAddress = index * 2;
+        const secondAddress = firstAddress + 1;
+
+        if (
+          firstAddress >= 0 &&
+          firstAddress < CODE_SEGMENT_LIMIT &&
+          firstAddress < updatedMemory.length
+        ) {
+          updatedMemory[firstAddress] = firstByte;
+        }
+
+        if (
+          secondAddress >= 0 &&
+          secondAddress < CODE_SEGMENT_LIMIT &&
+          secondAddress < updatedMemory.length
+        ) {
+          updatedMemory[secondAddress] = secondByte;
+        }
+      });
+
+      return updatedMemory;
+    });
+  }, []);
+
   const updateMemoryFromSummary = useCallback((memorySummary) => {
     if (!memorySummary) return;
 
     setMemoryBits((prevMemory) => {
-      const updatedMemory = prevMemory.map((row) => [...row]);
+      const updatedMemory =
+        Array.isArray(prevMemory) && prevMemory.length > 0
+          ? prevMemory.map((row) => [...row])
+          : createEmptyMemory(DEFAULT_MEMORY_SIZE);
 
       Object.entries(memorySummary).forEach(([address, value]) => {
         const rowIndex = Number(address);
 
-        if (rowIndex >= 0 && rowIndex < updatedMemory.length) {
+        /*
+          Data memory should start from address 100.
+          Address 0-99 is reserved for instruction format.
+        */
+        if (
+          rowIndex >= CODE_SEGMENT_LIMIT &&
+          rowIndex < updatedMemory.length
+        ) {
           updatedMemory[rowIndex] = numberToBitArray(value);
         }
       });
@@ -112,19 +197,24 @@ export const ArchitectureProvider = ({ children }) => {
     });
   }, []);
 
-  // Agar backend full Memory matrix bheje to ye handle karega
   const updateMemoryFromMatrix = useCallback((memoryMatrix) => {
     if (!Array.isArray(memoryMatrix)) return;
 
     setMemoryBits((prevMemory) => {
-      const updatedMemory = prevMemory.map((row) => [...row]);
+      const updatedMemory =
+        Array.isArray(prevMemory) && prevMemory.length > 0
+          ? prevMemory.map((row) => [...row])
+          : createEmptyMemory(DEFAULT_MEMORY_SIZE);
 
       let flatAddress = 0;
 
       memoryMatrix.forEach((row) => {
         if (Array.isArray(row)) {
           row.forEach((value) => {
-            if (flatAddress < updatedMemory.length) {
+            if (
+              flatAddress >= CODE_SEGMENT_LIMIT &&
+              flatAddress < updatedMemory.length
+            ) {
               updatedMemory[flatAddress] = numberToBitArray(value);
             }
 
@@ -137,96 +227,121 @@ export const ArchitectureProvider = ({ children }) => {
     });
   }, []);
 
-  // Backend StackSummary se stack update hogi
-  // Example: StackSummary = { "0": 45, "1": 300 }
-  const updateStackFromSummary = useCallback((stackSummary) => {
-    setStackValues((prevStack) => {
-      const updatedStack = createEmptyStack(prevStack.length || DEFAULT_STACK_SIZE);
+  const updateStackFromSummary = useCallback(
+    (stackSummary, apiStackPointer) => {
+      const pointer = Number(apiStackPointer) || 0;
+      const safeStackSize =
+        Number(stackSize) > 0 ? Number(stackSize) : DEFAULT_STACK_SIZE;
 
-      if (!stackSummary) {
-        return updatedStack;
+      const updatedStack = createEmptyStack(safeStackSize);
+
+      if (stackSummary) {
+        Object.entries(stackSummary).forEach(([index, value]) => {
+          const stackIndex = Number(index);
+
+          /*
+            Backend StackPointer points to next empty position.
+            Active values are indexes less than StackPointer.
+            This hides old popped values.
+          */
+          if (
+            stackIndex >= 0 &&
+            stackIndex < updatedStack.length &&
+            stackIndex < pointer
+          ) {
+            updatedStack[stackIndex] = String(value);
+          }
+        });
       }
 
-      Object.entries(stackSummary).forEach(([index, value]) => {
-        const stackIndex = Number(index);
+      setStackValues(updatedStack);
+    },
+    [stackSize]
+  );
 
-        if (stackIndex >= 0 && stackIndex < updatedStack.length) {
-          updatedStack[stackIndex] = String(value);
-        }
-      });
+  const updateStackFromArray = useCallback(
+    (stackArray, apiStackPointer) => {
+      if (!Array.isArray(stackArray)) return;
 
-      return updatedStack;
-    });
-  }, []);
+      const pointer = Number(apiStackPointer) || 0;
+      const safeStackSize =
+        Number(stackSize) > 0 ? Number(stackSize) : DEFAULT_STACK_SIZE;
 
-  // Agar backend full Stack array bheje to ye handle karega
-  const updateStackFromArray = useCallback((stackArray) => {
-    if (!Array.isArray(stackArray)) return;
-
-    setStackValues(() => {
-      const updatedStack = createEmptyStack(
-        stackArray.length || DEFAULT_STACK_SIZE
-      );
+      const updatedStack = createEmptyStack(safeStackSize);
 
       stackArray.forEach((value, index) => {
-        if (Number(value) !== 0) {
+        if (
+          index >= 0 &&
+          index < updatedStack.length &&
+          index < pointer &&
+          Number(value) !== 0
+        ) {
           updatedStack[index] = String(value);
         }
       });
 
-      return updatedStack;
-    });
-  }, []);
+      setStackValues(updatedStack);
+    },
+    [stackSize]
+  );
 
-  // EditorScreen / DebuggingScreen me run ke baad ye function call hoga
   const updateMemoryFromExecutionResult = useCallback(
     (executionResult) => {
       if (!executionResult) return;
 
-      // ================= MEMORY UPDATE =================
+      setLatestExecutionResult(executionResult);
 
-      if (Array.isArray(executionResult.memoryBits)) {
-        setMemoryBits(executionResult.memoryBits);
-      } else {
-        const memorySummary =
-          executionResult.MemorySummary ||
-          executionResult.memorySummary ||
-          null;
+      const details =
+        executionResult.InstructionDetails ||
+        executionResult.instructionDetails ||
+        [];
 
-        const memoryMatrix =
-          executionResult.Memory ||
-          executionResult.memory ||
-          null;
+      updateInstructionDetailsInMemory(details);
 
-        if (memorySummary) {
-          updateMemoryFromSummary(memorySummary);
-        } else if (memoryMatrix) {
-          updateMemoryFromMatrix(memoryMatrix);
-        }
+      const memorySummary =
+        executionResult.MemorySummary ||
+        executionResult.memorySummary ||
+        null;
+
+      const memoryMatrix =
+        executionResult.Memory ||
+        executionResult.memory ||
+        null;
+
+      if (memorySummary) {
+        updateMemoryFromSummary(memorySummary);
+      } else if (memoryMatrix) {
+        updateMemoryFromMatrix(memoryMatrix);
       }
 
-      // ================= STACK UPDATE =================
+      const apiStackPointer =
+        executionResult.StackPointer ??
+        executionResult.stackPointer ??
+        0;
+
+      setStackPointer(Number(apiStackPointer) || 0);
 
       const stackSummary =
         executionResult.StackSummary ||
         executionResult.stackSummary ||
-        executionResult.stack ||
         null;
 
       const stackArray =
         executionResult.Stack ||
+        executionResult.stack ||
         executionResult.stackArray ||
         null;
 
       if (stackSummary) {
-        updateStackFromSummary(stackSummary);
+        updateStackFromSummary(stackSummary, apiStackPointer);
       } else if (stackArray) {
-        updateStackFromArray(stackArray);
+        updateStackFromArray(stackArray, apiStackPointer);
       } else {
-        updateStackFromSummary(null);
+        updateStackFromSummary(null, apiStackPointer);
       }
     },
     [
+      updateInstructionDetailsInMemory,
       updateMemoryFromSummary,
       updateMemoryFromMatrix,
       updateStackFromSummary,
@@ -240,8 +355,14 @@ export const ArchitectureProvider = ({ children }) => {
       setSelectedArchitecture,
 
       memorySize,
+      stackSize,
+
       memoryBits,
       stackValues,
+      stackPointer,
+
+      instructionDetails,
+      latestExecutionResult,
 
       initializeMemory,
       clearMemory,
@@ -251,8 +372,12 @@ export const ArchitectureProvider = ({ children }) => {
     [
       selectedArchitecture,
       memorySize,
+      stackSize,
       memoryBits,
       stackValues,
+      stackPointer,
+      instructionDetails,
+      latestExecutionResult,
       initializeMemory,
       clearMemory,
       updateMemoryFromSummary,
@@ -266,7 +391,6 @@ export const ArchitectureProvider = ({ children }) => {
     </ArchitectureContext.Provider>
   );
 };
-
 
 //Show only 8 bit memory values if values increaedd then still showing 8 bit
 

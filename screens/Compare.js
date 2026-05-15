@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import {
   View,
   Text,
@@ -11,20 +11,189 @@ import {
   Modal,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
+
+import { ArchitectureContext } from "../context/ArchitectureContext";
 import { executeProgram } from "../api/executionApi";
 import { getCodeFiles, getCodeFileById } from "../api/codefile";
 import { getInstructionsByArchitectureId } from "../api/instructionApi";
 import { calculateCountCycleByArchitectureId } from "../utils/CountCycle";
+import { getArchitectureDetails } from "../api/detailApi";
+
+// ================= DEFAULT FLAGS =================
+const DEFAULT_FLAG_REGISTERS = [
+  { name: "Zero" },
+  { name: "Carry" },
+  { name: "Sign" },
+  { name: "Overflow" },
+];
+
+// ================= FLAG HELPERS =================
+const normalizeFlagValue = (value) => {
+  if (value === true) return 1;
+  if (value === false) return 0;
+  if (value === "true" || value === "True") return 1;
+  if (value === "false" || value === "False") return 0;
+  if (value === 1 || value === "1") return 1;
+  if (value === 0 || value === "0") return 0;
+  return value ?? 0;
+};
+
+const getFlagName = (flag, index) => {
+  return (
+    flag?.name ||
+    flag?.Name ||
+    flag?.FlagName ||
+    flag?.flagName ||
+    flag?.FlagRegisterName ||
+    flag?.flagRegisterName ||
+    flag?.RegisterName ||
+    flag?.registerName ||
+    DEFAULT_FLAG_REGISTERS[index]?.name ||
+    `Flag ${index + 1}`
+  );
+};
+
+// Backend flag order:
+// Flags[0] = Carry
+// Flags[1] = Overflow
+// Flags[2] = Sign
+// Flags[3] = Zero
+const getBackendFlagValues = (apiFlags = []) => {
+  let zero = 0;
+  let carry = 0;
+  let sign = 0;
+  let overflow = 0;
+
+  if (Array.isArray(apiFlags)) {
+    carry = normalizeFlagValue(apiFlags[0]);
+    overflow = normalizeFlagValue(apiFlags[1]);
+    sign = normalizeFlagValue(apiFlags[2]);
+    zero = normalizeFlagValue(apiFlags[3]);
+  } else if (apiFlags && typeof apiFlags === "object") {
+    carry = normalizeFlagValue(
+      apiFlags.Carry ??
+        apiFlags.carry ??
+        apiFlags.C ??
+        apiFlags.c ??
+        apiFlags.CF ??
+        apiFlags.cf ??
+        apiFlags["0"] ??
+        0
+    );
+
+    overflow = normalizeFlagValue(
+      apiFlags.Overflow ??
+        apiFlags.overflow ??
+        apiFlags.O ??
+        apiFlags.o ??
+        apiFlags.OF ??
+        apiFlags.of ??
+        apiFlags["1"] ??
+        0
+    );
+
+    sign = normalizeFlagValue(
+      apiFlags.Sign ??
+        apiFlags.sign ??
+        apiFlags.Negative ??
+        apiFlags.negative ??
+        apiFlags.S ??
+        apiFlags.s ??
+        apiFlags.SF ??
+        apiFlags.sf ??
+        apiFlags.N ??
+        apiFlags.n ??
+        apiFlags["2"] ??
+        0
+    );
+
+    zero = normalizeFlagValue(
+      apiFlags.Zero ??
+        apiFlags.zero ??
+        apiFlags.Z ??
+        apiFlags.z ??
+        apiFlags.ZF ??
+        apiFlags.zf ??
+        apiFlags["3"] ??
+        0
+    );
+  }
+
+  return {
+    zero,
+    carry,
+    sign,
+    overflow,
+  };
+};
+
+const getMappedFlagValueByName = (flagName, backendValues, apiFlags, index) => {
+  const lowerName = String(flagName || "").toLowerCase();
+
+  if (
+    lowerName.includes("zero") ||
+    lowerName === "z" ||
+    lowerName === "zf"
+  ) {
+    return backendValues.zero;
+  }
+
+  if (
+    lowerName.includes("carry") ||
+    lowerName === "c" ||
+    lowerName === "cf"
+  ) {
+    return backendValues.carry;
+  }
+
+  if (
+    lowerName.includes("sign") ||
+    lowerName.includes("negative") ||
+    lowerName === "s" ||
+    lowerName === "sf" ||
+    lowerName === "n"
+  ) {
+    return backendValues.sign;
+  }
+
+  if (
+    lowerName.includes("overflow") ||
+    lowerName === "o" ||
+    lowerName === "of"
+  ) {
+    return backendValues.overflow;
+  }
+
+  if (Array.isArray(apiFlags)) {
+    return normalizeFlagValue(apiFlags[index]);
+  }
+
+  return 0;
+};
+
+const buildDisplayFlags = (userFlagRegisters = [], apiFlags = []) => {
+  const hasUserFlags =
+    Array.isArray(userFlagRegisters) && userFlagRegisters.length > 0;
+
+  const flagsSource = hasUserFlags
+    ? userFlagRegisters
+    : DEFAULT_FLAG_REGISTERS;
+
+  const backendValues = getBackendFlagValues(apiFlags);
+
+  return flagsSource.map((flag, index) => {
+    const flagName = getFlagName(flag, index);
+
+    return {
+      label: flagName,
+      value: getMappedFlagValueByName(flagName, backendValues, apiFlags, index),
+    };
+  });
+};
 
 const Compare = ({ navigation, route }) => {
-  const architecture = route?.params?.architecture;
-
-  const architectureId =
-    route?.params?.architectureId ||
-    architecture?.ArchitectureID ||
-    architecture?.architectureID ||
-    architecture?.architectureId ||
-    architecture?.id;
+  // ================= ALL HOOKS AT TOP =================
+  const { updateMemoryFromExecutionResult } = useContext(ArchitectureContext);
 
   const [programACode, setProgramACode] = useState("");
   const [programBCode, setProgramBCode] = useState("");
@@ -45,8 +214,77 @@ const Compare = ({ navigation, route }) => {
   const [savedFiles, setSavedFiles] = useState([]);
   const [selectedProgramForOpen, setSelectedProgramForOpen] = useState(null);
 
+  const [generalRegisters, setGeneralRegisters] = useState([]);
+  const [flagRegisters, setFlagRegisters] = useState([]);
+
+  // ================= PARAMS =================
+  const architecture = route?.params?.architecture;
+
+  const architectureId =
+    route?.params?.architectureId ||
+    architecture?.ArchitectureID ||
+    architecture?.architectureID ||
+    architecture?.architectureId ||
+    architecture?.id;
+
+  const routeRegisters = route?.params?.registers || [];
+  const routeFlags = route?.params?.flags || [];
+
+  // ================= EFFECT =================
+  useEffect(() => {
+    const fetchArchitectureDetailsForNames = async () => {
+      try {
+        if (!architectureId) return;
+
+        const data = await getArchitectureDetails(architectureId);
+
+        setGeneralRegisters(data?.generalRegisters || []);
+        setFlagRegisters(data?.flagRegisters || []);
+
+        console.log("COMPARE ARCHITECTURE DETAILS:", {
+          generalRegisters: data?.generalRegisters || [],
+          flagRegisters: data?.flagRegisters || [],
+        });
+      } catch (err) {
+        console.log("Compare Details Fetch Error:", err);
+      }
+    };
+
+    fetchArchitectureDetailsForNames();
+  }, [architectureId]);
+
+  // ================= DB REGISTER / FLAG SOURCES =================
+  const dbRegisters =
+    Array.isArray(generalRegisters) && generalRegisters.length > 0
+      ? generalRegisters
+      : Array.isArray(routeRegisters) && routeRegisters.length > 0
+      ? routeRegisters
+      : architecture?.generalRegisters ||
+        architecture?.GeneralRegisters ||
+        architecture?.Registers ||
+        architecture?.registers ||
+        architecture?.ArchitectureRegisters ||
+        architecture?.architectureRegisters ||
+        [];
+
+  const dbFlags =
+    Array.isArray(flagRegisters) && flagRegisters.length > 0
+      ? flagRegisters
+      : Array.isArray(routeFlags) && routeFlags.length > 0
+      ? routeFlags
+      : architecture?.flagRegisters ||
+        architecture?.FlagRegisters ||
+        architecture?.Flags ||
+        architecture?.flags ||
+        architecture?.ArchitectureFlags ||
+        architecture?.architectureFlags ||
+        architecture?.ArchitectureFlagRegisters ||
+        architecture?.architectureFlagRegisters ||
+        [];
+
+  // ================= HELPERS =================
   const makeProgramLines = (code) => {
-    return code
+    return String(code || "")
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => line.length > 0);
@@ -57,6 +295,7 @@ const Compare = ({ navigation, route }) => {
       err?.response?.data?.message ||
       err?.response?.data?.Message ||
       err?.message ||
+      err?.toString() ||
       "Execution failed"
     );
   };
@@ -93,8 +332,8 @@ const Compare = ({ navigation, route }) => {
 
       registers: result?.Registers || result?.registers || [],
       flags: result?.Flags || result?.flags || [],
-      memory: result?.MemorySummary || result?.memory || {},
-      stack: result?.StackSummary || result?.stack || {},
+      memory: result?.MemorySummary || result?.memorySummary || {},
+      stack: result?.StackSummary || result?.stackSummary || {},
       errors: result?.Errors || result?.errors || [],
       success: result?.Success ?? result?.success ?? false,
 
@@ -109,26 +348,56 @@ const Compare = ({ navigation, route }) => {
     };
   };
 
-  const formatOutput = (output) => {
-    if (!output) {
-      return "Run program to see output";
-    }
-
-    if (output.errors?.length > 0) {
-      return "No output";
-    }
-
-    if (output.answer !== null && output.answer !== undefined) {
-      return String(output.answer);
-    }
-
-    if (Array.isArray(output.registers) && output.registers.length > 0) {
-      return String(output.registers[0]);
-    }
-
-    return "No output";
+  const getRegisterName = (reg, index) => {
+    return (
+      reg?.name ||
+      reg?.Name ||
+      reg?.RegisterName ||
+      reg?.registerName ||
+      `R${index + 1}`
+    );
   };
 
+  const buildDisplayRegisters = (output) => {
+    const registersArray = output?.registers || output?.Registers || [];
+
+    if (Array.isArray(dbRegisters) && dbRegisters.length > 0) {
+      return dbRegisters.map((reg, index) => ({
+        label: getRegisterName(reg, index),
+        value: registersArray[index] ?? 0,
+      }));
+    }
+
+    if (Array.isArray(registersArray) && registersArray.length > 0) {
+      return registersArray.map((value, index) => ({
+        label: `R${index + 1}`,
+        value: value ?? 0,
+      }));
+    }
+
+    return ["R1", "R2", "R3", "R4"].map((name) => ({
+      label: name,
+      value: 0,
+    }));
+  };
+
+  const buildFlagsForOutput = (output) => {
+    const flagsArray = output?.flags || output?.Flags || [];
+    return buildDisplayFlags(dbFlags, flagsArray);
+  };
+
+  const calculateClockCycleForProgram = async (code) => {
+    const cycleResult = await calculateCountCycleByArchitectureId({
+      code,
+      architectureId,
+      getInstructionsByArchitectureId,
+      architecture: architecture || {},
+    });
+
+    return getTotalCyclesFromResult(cycleResult);
+  };
+
+  // ================= OPEN FILE =================
   const handleOpen = async (programType) => {
     if (!architectureId) {
       Alert.alert("Error", "No architecture selected.");
@@ -169,7 +438,9 @@ const Compare = ({ navigation, route }) => {
         setProgramAOutput(null);
         setProgramAError("");
         setClock1(null);
-      } else if (selectedProgramForOpen === "B") {
+      }
+
+      if (selectedProgramForOpen === "B") {
         setProgramBCode(fileCode);
         setProgramBOutput(null);
         setProgramBError("");
@@ -188,17 +459,7 @@ const Compare = ({ navigation, route }) => {
     }
   };
 
-  const calculateClockCycleForProgram = async (code) => {
-    const cycleResult = await calculateCountCycleByArchitectureId({
-      code,
-      architectureId,
-      getInstructionsByArchitectureId,
-      architecture: architecture || {},
-    });
-
-    return getTotalCyclesFromResult(cycleResult);
-  };
-
+  // ================= RUN PROGRAM =================
   const runProgram = async (programType) => {
     const isProgramA = programType === "A";
     const code = isProgramA ? programACode : programBCode;
@@ -244,6 +505,10 @@ const Compare = ({ navigation, route }) => {
 
       const result = await executeProgram(architectureId, programLines);
 
+      if (updateMemoryFromExecutionResult) {
+        updateMemoryFromExecutionResult(result);
+      }
+
       console.log(`PROGRAM ${programType} EXECUTION RESULT:`, result);
 
       const executionResult = normalizeExecutionResult(result);
@@ -254,10 +519,11 @@ const Compare = ({ navigation, route }) => {
           ? calculatedCycles
           : executionResult.clockCycles || "Cycle Error";
 
+      const finalError = apiErrors.length > 0 ? apiErrors.join("\n") : "";
+
       if (isProgramA) {
         setProgramAOutput(executionResult);
 
-        const finalError = apiErrors.length > 0 ? apiErrors.join("\n") : "";
         setProgramAError(
           cycleErrorMessage
             ? `${finalError}${finalError ? "\n" : ""}${cycleErrorMessage}`
@@ -268,7 +534,6 @@ const Compare = ({ navigation, route }) => {
       } else {
         setProgramBOutput(executionResult);
 
-        const finalError = apiErrors.length > 0 ? apiErrors.join("\n") : "";
         setProgramBError(
           cycleErrorMessage
             ? `${finalError}${finalError ? "\n" : ""}${cycleErrorMessage}`
@@ -300,61 +565,68 @@ const Compare = ({ navigation, route }) => {
     }
   };
 
-  const renderProgramCard = ({
-    title,
+  // ================= DISPLAY DATA =================
+  const side1Registers = buildDisplayRegisters(programAOutput);
+  const side2Registers = buildDisplayRegisters(programBOutput);
+
+  const side1Flags = buildFlagsForOutput(programAOutput);
+  const side2Flags = buildFlagsForOutput(programBOutput);
+
+  // ================= RENDER HELPERS =================
+  const renderProgramColumn = ({
     programType,
     code,
     setCode,
-    output,
     error,
     loading,
     clock,
-    onRun,
     placeholder,
   }) => {
     return (
-      <View style={styles.programCard}>
-        <Text style={styles.programTitle}>{title}</Text>
+      <View style={styles.programColumn}>
+        <View style={styles.topButtonRow}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => handleOpen(programType)}
+          >
+            <Ionicons
+              name="folder-outline"
+              size={15}
+              color="#FFFFFF"
+              style={{ marginRight: 4 }}
+            />
+            <Text style={styles.actionButtonText}>Open</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.openBtn}
-          onPress={() => handleOpen(programType)}
-        >
-          <Ionicons
-            name="folder-outline"
-            size={16}
-            color="#1E3A8A"
-            style={{ marginRight: 4 }}
-          />
-          <Text style={styles.openText}>Open</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.runBtn, loading && styles.disabledBtn]}
-          onPress={onRun}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <>
-              <Ionicons
-                name="play"
-                size={16}
-                color="#fff"
-                style={{ marginRight: 4 }}
-              />
-              <Text style={styles.runText}>Run</Text>
-            </>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, loading && styles.disabledBtn]}
+            onPress={() => runProgram(programType)}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Ionicons
+                  name="play-outline"
+                  size={15}
+                  color="#FFFFFF"
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={styles.actionButtonText}>Run</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.codeBox}>
           <TextInput
             style={styles.codeInput}
             multiline
+            scrollEnabled={true}
+            nestedScrollEnabled={true}
             placeholder={placeholder}
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor="#A3A3A3"
             value={code}
             onChangeText={setCode}
             textAlignVertical="top"
@@ -363,76 +635,170 @@ const Compare = ({ navigation, route }) => {
           />
         </View>
 
-        <View style={styles.outputBox}>
-          <Text style={styles.outputTitle}>Output Display</Text>
-          <Text style={styles.outputValue}>{formatOutput(output)}</Text>
-        </View>
+        <Text style={styles.smallLabel}>Error Display</Text>
 
-        <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>Error Display</Text>
-          <Text style={styles.infoValue}>{error || "No Errors"}</Text>
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error || ""}</Text>
         </View>
 
         <View style={styles.clockBox}>
-          <Text style={styles.clockText}>Clock Cycle:</Text>
-          <Text style={styles.clockValue}>{clock ?? "N/A"}</Text>
+          <Text style={styles.clockPlaceholder}>
+            Clock Cycles: {clock ?? ""}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
+  const renderSmallBox = (item, index, colorType) => {
+    return (
+      <View key={`${item.label}-${index}`} style={styles.registerItem}>
+        <Text
+          style={[
+            styles.registerLabel,
+            colorType === "purple" && styles.registerLabelPurple,
+          ]}
+          numberOfLines={1}
+        >
+          {item.label}
+        </Text>
+
+        <View style={styles.registerValueBox}>
+          <Text
+            style={styles.registerValue}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.45}
+          >
+            {item.value ?? 0}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
+  const renderStateCard = ({ title, data, colorType }) => {
+    return (
+      <View
+        style={[
+          styles.stateCard,
+          colorType === "purple" && styles.stateCardPurple,
+        ]}
+      >
+        <Text
+          style={[
+            styles.stateTitle,
+            colorType === "purple" && styles.stateTitlePurple,
+          ]}
+        >
+          {title}
+        </Text>
+
+        <View style={styles.stateGrid}>
+          {data.map((item, index) => renderSmallBox(item, index, colorType))}
         </View>
       </View>
     );
   };
 
   return (
-    <View style={{ flex: 1 }}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#1E3A8A" />
+    <View style={styles.screen}>
+      <View style={styles.pageTitleRow}>
+        <TouchableOpacity
+          style={styles.pageBackButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={28} color="#1E3A8A" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Compare Programs</Text>
+        <Text style={styles.pageTitle}>Compare Programs</Text>
 
-        <View style={{ width: 24 }} />
+        <View style={{ width: 32 }} />
       </View>
 
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.architectureText}>
-          Using Architecture:{" "}
-          {architecture?.Name ||
-            architecture?.name ||
-            `Architecture ID ${architectureId || "N/A"}`}
-        </Text>
+      {/* ================= TOP HALF: EDITORS ================= */}
+      <View style={styles.editorHalf}>
+        <ScrollView
+          style={styles.halfScroll}
+          contentContainerStyle={styles.editorHalfContent}
+          nestedScrollEnabled={true}
+          showsVerticalScrollIndicator={true}
+        >
+          <View style={styles.compareCard}>
+            <View style={styles.programsRow}>
+              {renderProgramColumn({
+                programType: "A",
+                code: programACode,
+                setCode: setProgramACode,
+                error: programAError,
+                loading: programALoading,
+                clock: clock1,
+                placeholder: "MOV R1, #5",
+              })}
 
-        <View style={styles.parallelRow}>
-          {renderProgramCard({
-            title: "Program A",
-            programType: "A",
-            code: programACode,
-            setCode: setProgramACode,
-            output: programAOutput,
-            error: programAError,
-            loading: programALoading,
-            clock: clock1,
-            onRun: () => runProgram("A"),
-            placeholder: "Enter Program A code here...",
-          })}
+              <View style={styles.verticalDivider} />
 
-          {renderProgramCard({
-            title: "Program B",
-            programType: "B",
-            code: programBCode,
-            setCode: setProgramBCode,
-            output: programBOutput,
-            error: programBError,
-            loading: programBLoading,
-            clock: clock2,
-            onRun: () => runProgram("B"),
-            placeholder: "Enter Program B code here...",
-          })}
-        </View>
-      </ScrollView>
+              {renderProgramColumn({
+                programType: "B",
+                code: programBCode,
+                setCode: setProgramBCode,
+                error: programBError,
+                loading: programBLoading,
+                clock: clock2,
+                placeholder: "MOV R1, #5",
+              })}
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+
+      {/* ================= BOTTOM HALF: REGISTERS + FLAGS ================= */}
+      <View style={styles.resultHalf}>
+        <ScrollView
+          style={styles.halfScroll}
+          contentContainerStyle={styles.resultHalfContent}
+          nestedScrollEnabled={true}
+          showsVerticalScrollIndicator={true}
+        >
+          <View style={styles.matrixWrapper}>
+            <Text style={styles.matrixTitle}>
+              • GENERAL PURPOSE REGISTER MATRIX COMPARISON
+            </Text>
+
+            <View style={styles.stateRow}>
+              {renderStateCard({
+                title: "SIDE 1 STATE",
+                data: side1Registers,
+                colorType: "blue",
+              })}
+
+              {renderStateCard({
+                title: "SIDE 2 STATE",
+                data: side2Registers,
+                colorType: "purple",
+              })}
+            </View>
+          </View>
+
+          <View style={styles.matrixWrapper}>
+            <Text style={styles.matrixTitle}>• FLAG REGISTER COMPARISON</Text>
+
+            <View style={styles.stateRow}>
+              {renderStateCard({
+                title: "SIDE 1 FLAGS",
+                data: side1Flags,
+                colorType: "blue",
+              })}
+
+              {renderStateCard({
+                title: "SIDE 2 FLAGS",
+                data: side2Flags,
+                colorType: "purple",
+              })}
+            </View>
+          </View>
+        </ScrollView>
+      </View>
 
       <Modal visible={openModalVisible} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
@@ -462,7 +828,7 @@ const Compare = ({ navigation, route }) => {
                   setSelectedProgramForOpen(null);
                 }}
               >
-                <Text style={{ color: "red" }}>Cancel</Text>
+                <Text style={{ color: "red", fontWeight: "700" }}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -475,184 +841,260 @@ const Compare = ({ navigation, route }) => {
 export default Compare;
 
 const styles = StyleSheet.create({
-  header: {
-    height: 56,
-    backgroundColor: "white",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-  },
-
-  headerTitle: {
-    color: "#1E3A8A",
-    fontSize: 16,
-    fontWeight: "900",
-  },
-
-  container: {
+  screen: {
     flex: 1,
     backgroundColor: "#F8FAFC",
   },
 
-  content: {
-    padding: 10,
-    paddingBottom: 24,
+  pageTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+    backgroundColor: "#F8FAFC",
   },
 
-  architectureText: {
-    marginBottom: 10,
-    fontSize: 12,
-    fontWeight: "700",
+  pageBackButton: {
+    width: 32,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  pageTitle: {
+    fontSize: 24,
     color: "#1E3A8A",
+    fontWeight: "900",
+    textAlign: "center",
+    flex: 1,
   },
 
-  parallelRow: {
+  editorHalf: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingBottom: 6,
+  },
+
+  resultHalf: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 10,
+  },
+
+  halfScroll: {
+    flex: 1,
+  },
+
+  editorHalfContent: {
+    paddingBottom: 12,
+  },
+
+  resultHalfContent: {
+    paddingBottom: 30,
+  },
+
+  compareCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 12,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+  },
+
+  programsRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
+
+  programColumn: {
+    flex: 1,
+  },
+
+  verticalDivider: {
+    width: 1,
+    backgroundColor: "#D1D5DB",
+    marginHorizontal: 10,
+  },
+
+  topButtonRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    marginBottom: 8,
   },
 
-  programCard: {
+  actionButton: {
     width: "48%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    minHeight: 640,
-  },
-
-  programTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#1E3A8A",
-    textAlign: "center",
-    marginBottom: 6,
-  },
-
-  openBtn: {
-    borderWidth: 1,
-    borderColor: "#1E3A8A",
-    borderRadius: 8,
-    paddingVertical: 8,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-
-  openText: {
-    color: "#1E3A8A",
-    fontWeight: "600",
-    fontSize: 12,
-  },
-
-  runBtn: {
     backgroundColor: "#1E3A8A",
-    borderRadius: 8,
-    paddingVertical: 8,
-    flexDirection: "row",
-    justifyContent: "center",
+    borderRadius: 7,
+    paddingVertical: 10,
     alignItems: "center",
-    marginBottom: 10,
-    minHeight: 34,
+    justifyContent: "center",
+    flexDirection: "row",
+    minHeight: 40,
+  },
+
+  actionButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
   },
 
   disabledBtn: {
     opacity: 0.7,
   },
 
-  runText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 12,
-  },
-
   codeBox: {
-    backgroundColor: "#F9FBFF",
+    height: 168,
+    backgroundColor: "#FFFFFF",
     borderRadius: 8,
-    padding: 10,
-    minHeight: 300,
-    borderWidth: 1,
-    borderColor: "#E1E7F5",
-    marginBottom: 12,
+    borderWidth: 1.3,
+    borderColor: "#A3A3A3",
+    padding: 8,
+    marginBottom: 10,
   },
 
   codeInput: {
+    flex: 1,
     fontFamily: "monospace",
     fontSize: 12,
-    lineHeight: 16,
+    lineHeight: 17,
     color: "#1F2937",
-    flex: 1,
-    minHeight: 280,
+    textAlignVertical: "top",
   },
 
-  outputBox: {
-    backgroundColor: "#F0FDF4",
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#BBF7D0",
-    minHeight: 70,
-  },
-
-  outputTitle: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#166534",
-    marginBottom: 4,
-  },
-
-  outputValue: {
-    fontSize: 14,
-    color: "#14532D",
-    lineHeight: 20,
-    fontWeight: "700",
-  },
-
-  infoBox: {
-    backgroundColor: "#EFF6FF",
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#DBEAFE",
-    minHeight: 55,
-  },
-
-  infoTitle: {
-    fontSize: 11,
-    fontWeight: "600",
+  smallLabel: {
     color: "#1E3A8A",
+    fontWeight: "800",
+    fontSize: 11,
     marginBottom: 4,
   },
 
-  infoValue: {
-    fontSize: 11,
-    color: "#64748B",
+  errorBox: {
+    height: 65,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 8,
+    borderWidth: 1.2,
+    borderColor: "#A3A3A3",
+    padding: 7,
+    marginBottom: 10,
+  },
+
+  errorText: {
+    fontSize: 10,
+    color: "#DC2626",
   },
 
   clockBox: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    height: 55,
     backgroundColor: "#FFFFFF",
     borderRadius: 8,
-    paddingVertical: 8,
+    borderWidth: 1.2,
+    borderColor: "#A3A3A3",
     paddingHorizontal: 10,
+    justifyContent: "center",
+  },
+
+  clockPlaceholder: {
+    fontSize: 12,
+    color: "#A3A3A3",
+    fontWeight: "600",
+  },
+
+  matrixWrapper: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 13,
     borderWidth: 1,
     borderColor: "#E5E7EB",
+    padding: 12,
+    marginBottom: 14,
   },
 
-  clockText: {
-    fontSize: 11,
+  matrixTitle: {
     color: "#1E3A8A",
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "900",
+    textAlign: "center",
+    marginBottom: 14,
   },
 
-  clockValue: {
+  stateRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+
+  stateCard: {
+    width: "48%",
+    backgroundColor: "#EFF6FF",
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+  },
+
+  stateCardPurple: {
+    backgroundColor: "#F5F3FF",
+    borderColor: "#EDE9FE",
+  },
+
+  stateTitle: {
+    color: "#1E3A8A",
     fontSize: 11,
+    fontWeight: "900",
+    textAlign: "center",
+    marginBottom: 10,
+  },
+
+  stateTitlePurple: {
+    color: "#5B21B6",
+  },
+
+  stateGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+
+  registerItem: {
+    width: "48%",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+
+  registerLabel: {
+    fontSize: 12,
+    color: "#1E3A8A",
+    fontWeight: "800",
+    marginBottom: 5,
+  },
+
+  registerLabelPurple: {
+    color: "#5B21B6",
+  },
+
+  registerValueBox: {
+    width: "100%",
+    height: 58,
+    borderWidth: 1.2,
+    borderColor: "#A3A3A3",
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+
+  registerValue: {
+    color: "#374151",
+    fontSize: 14,
     fontWeight: "600",
+    textAlign: "center",
+    width: "100%",
   },
 
   modalBackdrop: {
@@ -671,14 +1113,14 @@ const styles = StyleSheet.create({
 
   modalTitle: {
     marginBottom: 10,
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 16,
     color: "#1E3A8A",
   },
 
   modalBtns: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     marginTop: 12,
   },
 

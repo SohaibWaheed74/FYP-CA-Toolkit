@@ -51,7 +51,61 @@ const DEFAULT_ADDRESSING_MODES = [
   { id: "default-inherent", name: "Inherent", code: "0", symbol: "-" },
 ];
 
-const NO_FLAG_INSTRUCTIONS = ["MOV", "MOVE", "SET", "LOAD", "STORE", "PUSH", "POP"];
+const NO_FLAG_INSTRUCTIONS = [
+  "MOV",
+  "MOVE",
+  "SET",
+  "LOAD",
+  "STORE",
+
+  "PUSH",
+  "POP",
+  "SPECIAL_PUSH",
+  "SPECIAL_POP",
+
+  "JMP",
+  "SPECIAL_JMP",
+  "JZ",
+  "JNZ",
+  "JC",
+  "JNC",
+  "JO",
+  "JNO",
+  "JS",
+  "JNS",
+
+  "CALL",
+  "RET",
+
+  "IN",
+  "OUT",
+  "SPECIAL_IN",
+  "SPECIAL_OUT",
+];
+
+const DEFAULT_FLAG_RULES = {
+  ADD: "Carry, Overflow, Sign, Zero",
+  SUB: "Carry, Overflow, Sign, Zero",
+  MUL: "Carry, Overflow, Sign, Zero",
+  DIV: "Sign, Zero",
+  MOD: "Sign, Zero",
+  INC: "Overflow, Sign, Zero",
+  DEC: "Overflow, Sign, Zero",
+
+  CMP: "Carry, Overflow, Sign, Zero",
+
+  AND: "Sign, Zero",
+  OR: "Sign, Zero",
+  XOR: "Sign, Zero",
+  NOT: "Sign, Zero",
+
+  SHL: "Carry, Sign, Zero",
+  SHR: "Carry, Sign, Zero",
+  SAL: "Carry, Sign, Zero",
+  SAR: "Carry, Sign, Zero",
+  ROL: "Carry",
+  ROR: "Carry",
+};
 
 const FIELD_KEYS = {
   architecture: ["architecture", "Architecture"],
@@ -93,6 +147,24 @@ const formatValue = value => {
 
 const getTextValue = (item, keys, fallback = "-") => {
   return formatValue(pickValue(item, keys, fallback));
+};
+
+const getRawDbValue = (item, keys) => {
+  for (const key of keys) {
+    const value = item?.[key];
+
+    if (
+      value !== undefined &&
+      value !== null &&
+      String(value).trim() !== "" &&
+      String(value).trim() !== "-" &&
+      String(value).trim().toLowerCase() !== "null"
+    ) {
+      return value;
+    }
+  }
+
+  return "";
 };
 
 const normalizeRegisterSize = register => {
@@ -250,38 +322,121 @@ const getAddressingModeCode = instruction => {
 };
 
 const getInterruptSymbol = instruction => {
-  return getTextValue(
-    instruction,
-    ["interruptSymbol", "InterruptSymbol", "interrupt_symbol", "Interrupt", "interrupt"],
-    ""
+  return formatValue(
+    getRawDbValue(instruction, [
+      "interruptSymbol",
+      "InterruptSymbol",
+      "interrupt_symbol",
+    ])
   );
 };
 
 const getInputRegister = instruction => {
-  return getTextValue(
-    instruction,
-    ["inputRegister", "InputRegister", "input_register", "InputReg", "inputReg"],
-    ""
+  return formatValue(
+    getRawDbValue(instruction, [
+      "inputRegister",
+      "InputRegister",
+      "input_register",
+      "InputReg",
+      "inputReg",
+    ])
   );
 };
 
 const getOutputRegister = instruction => {
-  return getTextValue(
-    instruction,
-    ["outputRegister", "OutputRegister", "output_register", "OutputReg", "outputReg"],
-    ""
+  return formatValue(
+    getRawDbValue(instruction, [
+      "outputRegister",
+      "OutputRegister",
+      "output_register",
+      "OutputReg",
+      "outputReg",
+    ])
   );
 };
 
 const hasInterruptDetails = instruction => {
-  return [
-    getInterruptSymbol(instruction),
-    getInputRegister(instruction),
-    getOutputRegister(instruction),
-  ].some(isUsefulValue);
+  const interruptSymbol = getRawDbValue(instruction, [
+    "interruptSymbol",
+    "InterruptSymbol",
+    "interrupt_symbol",
+  ]);
+
+  const inputRegister = getRawDbValue(instruction, [
+    "inputRegister",
+    "InputRegister",
+    "input_register",
+    "InputReg",
+    "inputReg",
+  ]);
+
+  const outputRegister = getRawDbValue(instruction, [
+    "outputRegister",
+    "OutputRegister",
+    "output_register",
+    "OutputReg",
+    "outputReg",
+  ]);
+
+  return Boolean(interruptSymbol || inputRegister || outputRegister);
 };
 
 const normalizeText = value => String(value || "").trim().toLowerCase();
+
+const inferFlagsFromAction = action => {
+  const cleanAction = String(action || "").toUpperCase().trim();
+
+  if (!isUsefulValue(cleanAction) || cleanAction === "-") {
+    return "NULL";
+  }
+
+  if (
+    cleanAction.includes("<<") ||
+    cleanAction.includes(">>")
+  ) {
+    return "Carry, Sign, Zero";
+  }
+
+  if (
+    cleanAction.includes(">=") ||
+    cleanAction.includes("<=") ||
+    cleanAction.includes("==") ||
+    cleanAction.includes("!=") ||
+    cleanAction.includes(">") ||
+    cleanAction.includes("<")
+  ) {
+    return "Carry, Overflow, Sign, Zero";
+  }
+
+  if (
+    cleanAction.includes("+") ||
+    cleanAction.includes("-")
+  ) {
+    return "Carry, Overflow, Sign, Zero";
+  }
+
+  if (cleanAction.includes("*")) {
+    return "Carry, Overflow, Sign, Zero";
+  }
+
+  if (
+    cleanAction.includes("/") ||
+    cleanAction.includes("%")
+  ) {
+    return "Sign, Zero";
+  }
+
+  if (
+    cleanAction.includes("&") ||
+    cleanAction.includes("|") ||
+    cleanAction.includes("^") ||
+    cleanAction.includes("~")
+  ) {
+    return "Sign, Zero";
+  }
+
+  return "NULL";
+};
 
 const Table = ({ children }) => <View style={styles.table}>{children}</View>;
 
@@ -444,68 +599,157 @@ const Detailscreen = () => {
 
     return getOperandTypeName(format[position - 1]);
   };
+  const formatOperandLabel = value => {
+  if (!isUsefulValue(value)) return "-";
+
+  const text = String(value).trim();
+
+  if (/^\d+$/.test(text)) {
+    return `Operand ${text}`;
+  }
+
+  const argumentMatch = text.match(/^A(\d+)$/i);
+  if (argumentMatch) {
+    return `Operand ${argumentMatch[1]}`;
+  }
+
+  const operandMatch = text.match(/^Operand\s*(\d+)$/i);
+  if (operandMatch) {
+    return `Operand ${operandMatch[1]}`;
+  }
+
+  return text.replace(/\bA(\d+)\b/gi, "Operand $1");
+};
 
   const getDestinationOperand = instruction => {
-    const directValue = getTextValue(
-      instruction,
-      [
-        "destinationOperand",
-        "DestinationOperand",
-        "destination",
-        "Destination",
-        "dest",
-        "Dest",
-        "destinationRegister",
-        "DestinationRegister",
-      ],
-      ""
-    );
+  const directValue = getTextValue(
+    instruction,
+    [
+      "destinationOperand",
+      "DestinationOperand",
+      "destination",
+      "Destination",
+      "dest",
+      "Dest",
+      "destinationRegister",
+      "DestinationRegister",
+    ],
+    ""
+  );
 
-    if (directValue) {
-      if (/^\d+$/.test(directValue)) return `A${directValue}`;
+  if (directValue) {
+    return formatOperandLabel(directValue);
+  }
 
-      const operandMatch = directValue.match(/^Operand\s*(\d+)$/i);
-      return operandMatch ? `A${operandMatch[1]}` : directValue;
-    }
-
-    const destinationIndex = getDestinationIndex(instruction);
-    return destinationIndex ? `A${destinationIndex}` : "-";
-  };
+  const destinationIndex = getDestinationIndex(instruction);
+  return destinationIndex ? `Operand ${destinationIndex}` : "-";
+};
 
   const getSourceOperand = instruction => {
-    const directValue = getTextValue(
-      instruction,
-      ["sourceOperand", "SourceOperand", "source", "Source", "src", "Src", "sourceRegister", "SourceRegister"],
-      ""
-    );
+  const directValue = getTextValue(
+    instruction,
+    [
+      "sourceOperand",
+      "SourceOperand",
+      "source",
+      "Source",
+      "src",
+      "Src",
+      "sourceRegister",
+      "SourceRegister",
+    ],
+    ""
+  );
 
-    if (directValue) return directValue.replace(/\bOperand\s*(\d+)\b/gi, "A$1");
+  if (directValue) {
+    return formatOperandLabel(directValue);
+  }
 
-    const count = Number.parseInt(getOperandCount(instruction), 10);
-    const destinationIndex = getDestinationIndex(instruction);
+  const count = Number.parseInt(getOperandCount(instruction), 10);
+  const destinationIndex = getDestinationIndex(instruction);
 
-    if (Number.isNaN(count) || count <= 1) return "-";
+  if (Number.isNaN(count) || count <= 1) return "-";
 
-    const sourceOperands = Array.from({ length: count }, (_, index) => index + 1)
-      .filter(position => position !== destinationIndex)
-      .map(position => `A${position}`);
+  const sourceOperands = Array.from({ length: count }, (_, index) => index + 1)
+    .filter(position => position !== destinationIndex)
+    .map(position => `Operand ${position}`);
 
-    return sourceOperands.length ? sourceOperands.join(", ") : "-";
-  };
+  return sourceOperands.length ? sourceOperands.join(", ") : "-";
+};
 
+  // const getAffectedFlags = instruction => {
+  //   const mnemonic = getMnemonic(instruction).toUpperCase();
+
+  //   if (NO_FLAG_INSTRUCTIONS.includes(mnemonic)) {
+  //     return "NULL";
+  //   }
+
+  //   if (DEFAULT_FLAG_RULES[mnemonic]) {
+  //     return DEFAULT_FLAG_RULES[mnemonic];
+  //   }
+
+  //   const action = getInstructionAction(instruction);
+  //   const actionFlags = inferFlagsFromAction(action);
+
+  //   if (actionFlags !== "NULL") {
+  //     return actionFlags;
+  //   }
+
+  //   const apiFlags = getTextValue(
+  //     instruction,
+  //     ["affectedFlags", "AffectedFlags", "flags", "Flags"],
+  //     ""
+  //   );
+
+  //   if (apiFlags) return apiFlags;
+
+  //   return "NULL";
+  // };
   const getAffectedFlags = instruction => {
-    const apiFlags = getTextValue(instruction, ["affectedFlags", "AffectedFlags", "flags", "Flags"], "");
-    if (apiFlags) return apiFlags;
+  const mnemonic = getMnemonic(instruction).toUpperCase();
+  const action = getInstructionAction(instruction);
 
-    const mnemonic = getMnemonic(instruction).toUpperCase();
-    if (NO_FLAG_INSTRUCTIONS.includes(mnemonic)) return "NULL";
+  /*
+    USER-DEFINED MNEMONIC LOGIC:
+    If mnemonic is custom, flags will be inferred from Action/Micro Operation.
+    Example:
+    XYZ A1 = A2 + A3  => Carry, Overflow, Sign, Zero
+    ABC A1 = A2 & A3  => Sign, Zero
+  */
 
-    const flags = visibleFlagRegisters
-      .map(flag => getTextValue(flag, ["name", "Name", "flagName", "FlagName"], ""))
-      .filter(flag => flag && flag !== "-");
+  const isKnownNoFlagInstruction = NO_FLAG_INSTRUCTIONS.includes(mnemonic);
+  const isKnownFlagInstruction = DEFAULT_FLAG_RULES[mnemonic];
 
-    return flags.length ? flags.join(", ") : "Zero, Carry, Sign, Overflow";
-  };
+  // 1. First check API/DB affected flags if saved manually
+  const apiFlags = getTextValue(
+    instruction,
+    ["affectedFlags", "AffectedFlags", "flags", "Flags"],
+    ""
+  );
+
+  if (apiFlags) {
+    return apiFlags;
+  }
+
+  // 2. If known no-flag instruction like MOV, LOAD, STORE, PUSH, POP
+  if (isKnownNoFlagInstruction) {
+    return "NULL";
+  }
+
+  // 3. If known instruction like ADD/SUB/MUL, use default rule
+  if (isKnownFlagInstruction) {
+    return DEFAULT_FLAG_RULES[mnemonic];
+  }
+
+  // 4. For user-defined mnemonic, infer flags from action
+  const actionFlags = inferFlagsFromAction(action);
+
+  if (actionFlags !== "NULL") {
+    return actionFlags;
+  }
+
+  return "NULL";
+};
 
   const getFlagBit = (instruction, flagName) => {
     const affectedFlags = getAffectedFlags(instruction);

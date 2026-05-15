@@ -17,6 +17,7 @@ import {
   getArchitectureDetails,
   getAllArchitectures,
   deleteArchitecture,
+  updateArchitectureFavourite,
 } from "../api/detailApi";
 import { useArchitectureForExecution } from "../api/executionApi";
 
@@ -39,11 +40,18 @@ const DashBoard = ({ navigation }) => {
     searchText: "",
     loading: true,
     actionLoadingId: null,
+    favouriteLoadingId: null,
     error: null,
   });
 
-  const { architectures, searchText, loading, actionLoadingId, error } =
-    screenState;
+  const {
+    architectures,
+    searchText,
+    loading,
+    actionLoadingId,
+    favouriteLoadingId,
+    error,
+  } = screenState;
 
   const updateScreenState = (newState) => {
     setScreenState((prev) => ({
@@ -52,10 +60,85 @@ const DashBoard = ({ navigation }) => {
     }));
   };
 
+  const getUserId = () => {
+    return (
+      user?.UserID ||
+      user?.userID ||
+      user?.UserId ||
+      user?.userId ||
+      user?.id ||
+      user?.ID ||
+      user?.data?.UserID ||
+      user?.data?.userID ||
+      user?.data?.id ||
+      0
+    );
+  };
+
+  const getIsFavourite = (item) => {
+    return (
+      item?.IsFavourite === true ||
+      item?.IsFavourite === 1 ||
+      item?.IsFavourite === "1" ||
+      item?.isFavourite === true ||
+      item?.isFavourite === 1 ||
+      item?.isFavourite === "1"
+    );
+  };
+
+  const sortArchitectures = (list) => {
+    return [...list].sort((a, b) => {
+      const favA = getIsFavourite(a) ? 1 : 0;
+      const favB = getIsFavourite(b) ? 1 : 0;
+
+      if (favA !== favB) {
+        return favB - favA;
+      }
+
+      return Number(b.ArchitectureID || 0) - Number(a.ArchitectureID || 0);
+    });
+  };
+
   // ================= SEARCH FILTER =================
-  const filteredArchitectures = architectures.filter((item) =>
-    item?.Name?.toLowerCase().includes(searchText.toLowerCase())
-  );
+const getSearchableText = (value) => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => getSearchableText(item)).join(" ");
+  }
+
+  if (typeof value === "object") {
+    return Object.values(value)
+      .map((item) => getSearchableText(item))
+      .join(" ");
+  }
+
+  return "";
+};
+
+const filteredArchitectures = sortArchitectures(
+  architectures.filter((item) => {
+    const search = searchText.toLowerCase().trim();
+
+    if (!search) {
+      return true;
+    }
+
+    const architectureSearchText = getSearchableText(item).toLowerCase();
+
+    return architectureSearchText.includes(search);
+  })
+);
 
   // ================= FETCH ARCHITECTURES =================
   const fetchArchitectures = async () => {
@@ -65,10 +148,20 @@ const DashBoard = ({ navigation }) => {
         error: null,
       });
 
-      const data = await getAllArchitectures();
+      const userId = getUserId();
+
+      if (!userId) {
+        updateScreenState({
+          architectures: [],
+          error: "User ID not found. Please login again.",
+        });
+        return;
+      }
+
+      const data = await getAllArchitectures(userId);
 
       updateScreenState({
-        architectures: Array.isArray(data) ? data : [],
+        architectures: Array.isArray(data) ? sortArchitectures(data) : [],
       });
     } catch (err) {
       console.log("Dashboard Fetch Error:", err);
@@ -93,7 +186,7 @@ const DashBoard = ({ navigation }) => {
     });
 
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, user]);
 
   // ================= LOGOUT =================
   const handleLogout = () => {
@@ -116,6 +209,81 @@ const DashBoard = ({ navigation }) => {
     navigation.navigate("UsersScreen");
   };
 
+  // ================= OPEN FAVOURITE SCREEN =================
+  const handleOpenFavourites = () => {
+    navigation.navigate("FavouriteArchitecture");
+  };
+
+  // ================= FAVOURITE =================
+  const handleFavourite = async (item) => {
+    const id = item?.ArchitectureID;
+    const userId = getUserId();
+
+    if (!userId) {
+      Alert.alert("Error", "User ID not found. Please login again.");
+      return;
+    }
+
+    if (!id) {
+      Alert.alert("Error", "Architecture ID not found");
+      return;
+    }
+
+    const oldValue = getIsFavourite(item);
+    const newValue = !oldValue;
+
+    try {
+      updateScreenState({
+        favouriteLoadingId: id,
+      });
+
+      setScreenState((prev) => ({
+        ...prev,
+        architectures: sortArchitectures(
+          prev.architectures.map((arch) =>
+            arch.ArchitectureID === id
+              ? {
+                  ...arch,
+                  IsFavourite: newValue,
+                  isFavourite: newValue,
+                }
+              : arch
+          )
+        ),
+      }));
+
+      await updateArchitectureFavourite(id, userId, newValue);
+    } catch (error) {
+      console.log("Favourite Error:", error?.message || error?.toString());
+
+      setScreenState((prev) => ({
+        ...prev,
+        architectures: sortArchitectures(
+          prev.architectures.map((arch) =>
+            arch.ArchitectureID === id
+              ? {
+                  ...arch,
+                  IsFavourite: oldValue,
+                  isFavourite: oldValue,
+                }
+              : arch
+          )
+        ),
+      }));
+
+      Alert.alert(
+        "Error",
+        error?.message ||
+          error?.toString() ||
+          "Failed to update favourite status"
+      );
+    } finally {
+      updateScreenState({
+        favouriteLoadingId: null,
+      });
+    }
+  };
+
   // ================= USE ARCHITECTURE =================
   const handleUse = async (item) => {
     try {
@@ -134,20 +302,37 @@ const DashBoard = ({ navigation }) => {
 
       await useArchitectureForExecution(id);
 
-      const architectureInfo = architectureData?.Architecture || {};
+      const architectureInfo =
+        architectureData?.Architecture || architectureData?.architecture || {};
 
       const fullArchitecture = {
         ...architectureInfo,
-        Instructions: architectureData?.Instructions || [],
-        Registers: architectureData?.Registers || [],
-        AddressingModes: architectureData?.AddressingModes || [],
+
+        Instructions:
+          architectureData?.Instructions || architectureData?.instructions || [],
+
+        Registers:
+          architectureData?.Registers || architectureData?.registers || [],
+
+        AddressingModes:
+          architectureData?.AddressingModes ||
+          architectureData?.addressingModes ||
+          [],
+
         ArchitectureID: id,
       };
 
       setSelectedArchitecture(fullArchitecture);
 
       const memorySize =
-        Number(architectureInfo?.MemorySize) || Number(item?.MemorySize) || 0;
+        Number(architectureInfo?.MemorySize) ||
+        Number(item?.MemorySize) ||
+        Number(
+          String(architectureInfo?.memorySize || "")
+            .replace(" Bytes", "")
+            .trim()
+        ) ||
+        0;
 
       initializeMemory(memorySize);
 
@@ -255,6 +440,8 @@ const DashBoard = ({ navigation }) => {
   // ================= CARD ITEM =================
   const renderItem = ({ item }) => {
     const isLoading = actionLoadingId === item.ArchitectureID;
+    const isFavouriteLoading = favouriteLoadingId === item.ArchitectureID;
+    const isFavourite = getIsFavourite(item);
 
     return (
       <View style={styles.card}>
@@ -264,20 +451,40 @@ const DashBoard = ({ navigation }) => {
             <Text style={styles.cardTitle}>{item.Name}</Text>
           </View>
 
-          {/* Delete Button - SuperAdmin only */}
-          {canDelete && (
-            <TouchableOpacity
-              style={styles.deleteIconButton}
-              onPress={() => handleDelete(item)}
-              disabled={isLoading}
+          <View style={styles.topIconRow}>
+            {/* <TouchableOpacity
+              style={[
+                styles.favouriteIconButton,
+                isFavourite && styles.favouriteActiveButton,
+              ]}
+              onPress={() => handleFavourite(item)}
+              disabled={isLoading || isFavouriteLoading}
             >
-              {isLoading ? (
+              {isFavouriteLoading ? (
                 <ActivityIndicator size="small" color="#DC2626" />
               ) : (
-                <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                <Ionicons
+                  name={isFavourite ? "heart" : "heart-outline"}
+                  size={20}
+                  color={isFavourite ? "#DC2626" : "#64748B"}
+                />
               )}
-            </TouchableOpacity>
-          )}
+            </TouchableOpacity> */}
+
+            {canDelete && (
+              <TouchableOpacity
+                style={styles.deleteIconButton}
+                onPress={() => handleDelete(item)}
+                disabled={isLoading || isFavouriteLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="#DC2626" />
+                ) : (
+                  <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         <Text style={styles.cardText}>Memory: {item.MemorySize} Bytes</Text>
@@ -287,7 +494,7 @@ const DashBoard = ({ navigation }) => {
           <TouchableOpacity
             style={styles.useButton}
             onPress={() => handleUse(item)}
-            disabled={isLoading}
+            disabled={isLoading || isFavouriteLoading}
           >
             {isLoading ? (
               <ActivityIndicator color="#fff" />
@@ -302,7 +509,7 @@ const DashBoard = ({ navigation }) => {
               !hasAdminAccess && styles.disabledUpdateButton,
             ]}
             onPress={() => handleUpdate(item.ArchitectureID)}
-            disabled={isLoading}
+            disabled={isLoading || isFavouriteLoading}
           >
             <Text
               style={[
@@ -317,7 +524,7 @@ const DashBoard = ({ navigation }) => {
           <TouchableOpacity
             style={styles.detailsButton}
             onPress={() => handleDetail(item.ArchitectureID)}
-            disabled={isLoading}
+            disabled={isLoading || isFavouriteLoading}
           >
             <Text style={styles.buttonText}>Details</Text>
           </TouchableOpacity>
@@ -359,10 +566,20 @@ const DashBoard = ({ navigation }) => {
           </Text>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={14} color="#FFFFFF" />
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+        <View style={styles.headerButtonRow}>
+          {/* <TouchableOpacity
+            style={styles.topFavouriteButton}
+            onPress={handleOpenFavourites}
+          >
+            <Ionicons name="heart" size={14} color="#FFFFFF" />
+            <Text style={styles.topFavouriteText}>Favourite</Text>
+          </TouchableOpacity> */}
+
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={14} color="#FFFFFF" />
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search Field */}
@@ -376,7 +593,7 @@ const DashBoard = ({ navigation }) => {
               searchText: text,
             })
           }
-          placeholder="Search architecture by name..."
+          placeholder="Search by name, memory, bus, registers, instructions..."
           placeholderTextColor="#94A3B8"
           style={styles.searchInput}
         />
@@ -405,7 +622,6 @@ const DashBoard = ({ navigation }) => {
         }
       />
 
-      {/* Floating Users Button - Admin and SuperAdmin */}
       {hasAdminAccess && (
         <TouchableOpacity style={styles.floatingUsersButton} onPress={handleUsers}>
           <Ionicons name="people-outline" size={24} color="#FFFFFF" />
@@ -447,6 +663,27 @@ const styles = StyleSheet.create({
   subHeader: {
     fontSize: 13,
     color: "#555",
+  },
+
+  headerButtonRow: {
+    alignItems: "flex-end",
+  },
+
+  topFavouriteButton: {
+    backgroundColor: "#DC2626",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 9,
+    borderRadius: 7,
+    marginBottom: 7,
+  },
+
+  topFavouriteText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+    marginLeft: 4,
   },
 
   logoutButton: {
@@ -524,6 +761,25 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     flex: 1,
     color: "#111827",
+  },
+
+  topIconRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  favouriteIconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
+
+  favouriteActiveButton: {
+    backgroundColor: "#FEE2E2",
   },
 
   deleteIconButton: {

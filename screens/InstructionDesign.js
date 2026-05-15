@@ -21,7 +21,10 @@ const OPERAND_TYPES = [
   { label: "Register", value: 0 },
   { label: "Immediate", value: 1 },
   { label: "Memory", value: 2 },
+  { label: "Indirect", value: 3 },
 ];
+
+const MAX_OPERANDS = 3;
 
 const INTERRUPT_SYMBOLS = [
   { label: "1(Input)", value: "1(Input)" },
@@ -133,6 +136,11 @@ export default function InstructionDesign() {
 
   const addOperand = () => {
     setOperands((prev) => {
+      if (prev.length >= MAX_OPERANDS) {
+        Alert.alert("Limit Reached", "Maximum 3 operands are allowed.");
+        return prev;
+      }
+
       const newOp = {
         id: operandCounter,
         type: 0,
@@ -477,11 +485,12 @@ export default function InstructionDesign() {
                     </TouchableOpacity>
                   )}
 
-                  {index === operands.length - 1 && (
-                    <TouchableOpacity onPress={addOperand}>
-                      <Text style={styles.plus}>＋</Text>
-                    </TouchableOpacity>
-                  )}
+                  {index === operands.length - 1 &&
+                    operands.length < MAX_OPERANDS && (
+                      <TouchableOpacity onPress={addOperand}>
+                        <Text style={styles.plus}>＋</Text>
+                      </TouchableOpacity>
+                    )}
                 </View>
               ))}
             </>
@@ -656,12 +665,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   destinationHeading: {
-  marginTop: 12,
-  marginBottom: 5,
-  marginLeft: 100,
-  fontWeight: "bold",
-  color: "#000",
-},
+    marginTop: 12,
+    marginBottom: 5,
+    marginLeft: 100,
+    fontWeight: "bold",
+    color: "#000",
+  },
 
   dropdownFull: {
     height: 42,

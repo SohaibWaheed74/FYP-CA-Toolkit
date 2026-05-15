@@ -9,6 +9,7 @@ import Compare from "../screens/Compare";
 import Debugging from "../screens/Debugging";
 import UpdateArchitectureScreen from "../screens/UpdateScreen";
 import UserDetails from "../screens/UserDetails";
+import FavouriteArchitecture from "../screens/FavouriteArchitecture";
 
 const Stack = createNativeStackNavigator();
 
@@ -23,6 +24,8 @@ const DashboardStack = () => {
       <Stack.Screen name="Debugging" component={Debugging} />
       <Stack.Screen name="UpdateScreen" component={UpdateArchitectureScreen} />
       <Stack.Screen name="UsersScreen" component={UserDetails} />
+      <Stack.Screen name="FavouriteArchitecture" component={FavouriteArchitecture}
+/>
     </Stack.Navigator>
   );
 };

@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // const BASE_URL = "http://192.168.18.108/ComputerArchitectureToolkitAPI/api";
-const BASE_URL = "http://192.168.1.9/ComputerArchitectureToolkitAPI/api";
+const BASE_URL = "http://192.168.1.5/ComputerArchitectureToolkitAPI/api";
 
 // --------------------------------- USE ARCHITECTURE ---------------------------------
 export const useArchitectureForExecution = async (architectureId) => {

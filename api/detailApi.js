@@ -1,4 +1,4 @@
-const BASE_URL = "http://192.168.1.9/ComputerArchitectureToolkitAPI/api";
+const BASE_URL = "http://192.168.1.5/ComputerArchitectureToolkitAPI/api";
 // const BASE_URL = "http://192.168.18.108/ComputerArchitectureToolkitAPI/api";
 
 // ================= DEFAULT FLAG REGISTERS =================
@@ -34,18 +34,57 @@ const DEFAULT_FLAG_REGISTERS = [
 ];
 
 // ================= FETCH ALL ARCHITECTURES =================
-export const getAllArchitectures = async () => {
-  try {
-    const response = await fetch(`${BASE_URL}/architecture/all`);
+// export const getAllArchitectures = async () => {
+//   try {
+//     const response = await fetch(`${BASE_URL}/architecture/all`);
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch architectures");
-    }
+//     if (!response.ok) {
+//       throw new Error("Failed to fetch architectures");
+//     }
+
+//     const data = await response.json();
+//     return data || [];
+//   } catch (error) {
+//     console.log("All Architectures API Error:", error);
+//     throw error;
+//   }
+// };
+
+// ================= FETCH ALL ARCHITECTURES =================
+export const getAllArchitectures = async (userId = 0) => {
+  try {
+    const response = await fetch(
+      `${BASE_URL}/architecture/all?userId=${userId}`
+    );
 
     const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.message || "Failed to fetch architectures");
+    }
+
     return data || [];
   } catch (error) {
     console.log("All Architectures API Error:", error);
+    throw error;
+  }
+};
+// ================= FETCH USER FAVOURITE ARCHITECTURES =================
+export const getFavouriteArchitectures = async (userId) => {
+  try {
+    const response = await fetch(
+      `${BASE_URL}/architecture/user/${userId}/favourites`
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.message || "Failed to fetch favourite architectures");
+    }
+
+    return data || [];
+  } catch (error) {
+    console.log("Favourite Architectures API Error:", error);
     throw error;
   }
 };
@@ -361,6 +400,39 @@ export const deleteArchitecture = async (architectureId) => {
     return data;
   } catch (error) {
     console.log("Delete Architecture API Error:", error);
+    throw error;
+  }
+};
+// ================= UPDATE ARCHITECTURE FAVOURITE =================
+export const updateArchitectureFavourite = async (
+  architectureId,
+  userId,
+  isFavourite
+) => {
+  try {
+    const response = await fetch(
+      `${BASE_URL}/architecture/${architectureId}/isfavourite`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          UserID: userId,
+          IsFavourite: isFavourite,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.message || "Failed to update favourite status");
+    }
+
+    return data;
+  } catch (error) {
+    console.log("Update Favourite API Error:", error);
     throw error;
   }
 };

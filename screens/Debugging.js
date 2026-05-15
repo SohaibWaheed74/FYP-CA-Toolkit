@@ -15,8 +15,6 @@ import { getArchitectureDetails } from "../api/detailApi";
 import { ArchitectureContext } from "../context/ArchitectureContext";
 
 // ================= DEFAULT FLAGS =================
-// Agar user apna flag register create na kare
-// to ye default flags show honge.
 const DEFAULT_FLAG_REGISTERS = [
   { name: "Zero" },
   { name: "Carry" },
@@ -52,15 +50,6 @@ const getFlagName = (flag, index) => {
 };
 
 // ================= BACKEND FLAGS MAPPING =================
-// Backend updated order:
-// Flags[0] = Carry
-// Flags[1] = Overflow
-// Flags[2] = Sign
-// Flags[3] = Zero
-//
-// Frontend display:
-// User flags hon to user flags.
-// User flags empty hon to default flags.
 const getBackendFlagValues = (apiFlags = []) => {
   let zero = 0;
   let carry = 0;
@@ -75,50 +64,50 @@ const getBackendFlagValues = (apiFlags = []) => {
   } else if (apiFlags && typeof apiFlags === "object") {
     carry = normalizeFlagValue(
       apiFlags.Carry ??
-      apiFlags.carry ??
-      apiFlags.C ??
-      apiFlags.c ??
-      apiFlags.CF ??
-      apiFlags.cf ??
-      apiFlags["0"] ??
-      0
+        apiFlags.carry ??
+        apiFlags.C ??
+        apiFlags.c ??
+        apiFlags.CF ??
+        apiFlags.cf ??
+        apiFlags["0"] ??
+        0
     );
 
     overflow = normalizeFlagValue(
       apiFlags.Overflow ??
-      apiFlags.overflow ??
-      apiFlags.O ??
-      apiFlags.o ??
-      apiFlags.OF ??
-      apiFlags.of ??
-      apiFlags["1"] ??
-      0
+        apiFlags.overflow ??
+        apiFlags.O ??
+        apiFlags.o ??
+        apiFlags.OF ??
+        apiFlags.of ??
+        apiFlags["1"] ??
+        0
     );
 
     sign = normalizeFlagValue(
       apiFlags.Sign ??
-      apiFlags.sign ??
-      apiFlags.Negative ??
-      apiFlags.negative ??
-      apiFlags.S ??
-      apiFlags.s ??
-      apiFlags.SF ??
-      apiFlags.sf ??
-      apiFlags.N ??
-      apiFlags.n ??
-      apiFlags["2"] ??
-      0
+        apiFlags.sign ??
+        apiFlags.Negative ??
+        apiFlags.negative ??
+        apiFlags.S ??
+        apiFlags.s ??
+        apiFlags.SF ??
+        apiFlags.sf ??
+        apiFlags.N ??
+        apiFlags.n ??
+        apiFlags["2"] ??
+        0
     );
 
     zero = normalizeFlagValue(
       apiFlags.Zero ??
-      apiFlags.zero ??
-      apiFlags.Z ??
-      apiFlags.z ??
-      apiFlags.ZF ??
-      apiFlags.zf ??
-      apiFlags["3"] ??
-      0
+        apiFlags.zero ??
+        apiFlags.Z ??
+        apiFlags.z ??
+        apiFlags.ZF ??
+        apiFlags.zf ??
+        apiFlags["3"] ??
+        0
     );
   }
 
@@ -167,8 +156,6 @@ const getMappedFlagValueByName = (flagName, backendValues, apiFlags, index) => {
     return backendValues.overflow;
   }
 
-  // Agar user custom unknown flag name rakhe,
-  // to fallback ke liye backend array ka same index use kar lo.
   if (Array.isArray(apiFlags)) {
     return normalizeFlagValue(apiFlags[index]);
   }
@@ -177,15 +164,11 @@ const getMappedFlagValueByName = (flagName, backendValues, apiFlags, index) => {
 };
 
 // ================= BUILD FLAGS =================
-// User flags hon to user flags use honge.
-// User flags empty hon to default flags use honge.
 const buildDisplayFlags = (userFlagRegisters = [], apiFlags = []) => {
   const hasUserFlags =
     Array.isArray(userFlagRegisters) && userFlagRegisters.length > 0;
 
-  const flagSource = hasUserFlags
-    ? userFlagRegisters
-    : DEFAULT_FLAG_REGISTERS;
+  const flagSource = hasUserFlags ? userFlagRegisters : DEFAULT_FLAG_REGISTERS;
 
   const backendValues = getBackendFlagValues(apiFlags);
 
@@ -238,8 +221,9 @@ const Debugging = () => {
   const [flagRegisters, setFlagRegisters] = useState([]);
 
   const isStepLoading = isRunning === "step";
+  const isBackLoading = isRunning === "back";
   const isRunLoading = isRunning === "run";
-  const isAnyLoading = isStepLoading || isRunLoading;
+  const isAnyLoading = isStepLoading || isBackLoading || isRunLoading;
 
   const makeRegisterBoxes = (items = []) => {
     if (!Array.isArray(items)) return [];
@@ -309,6 +293,27 @@ const Debugging = () => {
     return makeFlagBoxes(getFlagSource());
   };
 
+  const getMemorySize = () => {
+    return (
+      Number(architecture?.MemorySize) ||
+      Number(architecture?.memorySize) ||
+      Number(
+        String(architecture?.memorySize || "")
+          .replace(" Bytes", "")
+          .trim()
+      ) ||
+      0
+    );
+  };
+
+  const resetMemoryIfPossible = () => {
+    const memorySize = getMemorySize();
+
+    if (memorySize > 0) {
+      initializeMemory(memorySize);
+    }
+  };
+
   const getOutputFromResult = (result) => {
     const errors = result?.Errors || result?.errors || [];
 
@@ -370,9 +375,6 @@ const Debugging = () => {
         setFlagRegisters(dbFlagRegisters);
 
         setRegisters(makeRegisterBoxes(dbGeneralRegisters));
-
-        // User ke flags hon to user flags.
-        // Agar DB se flags empty hon to default flags.
         setFlags(makeFlagBoxes(dbFlagRegisters));
 
         console.log("DEBUGGING DETAILS FROM API:", {
@@ -401,8 +403,6 @@ const Debugging = () => {
       setRegisters(makeRegisterBoxes(routeRegisters));
     }
 
-    // Agar DB flags empty hon aur route flags hon to route flags show karo.
-    // Agar dono empty hon to default flags show karo.
     if (flagRegisters.length === 0) {
       if (routeFlags.length > 0) {
         setFlags(makeFlagBoxes(routeFlags));
@@ -433,12 +433,32 @@ const Debugging = () => {
   };
 
   const mapApiFlagsWithDbNames = (apiFlags) => {
-    // Backend updated order:
-    // Flags[0] = Carry
-    // Flags[1] = Overflow
-    // Flags[2] = Sign
-    // Flags[3] = Zero
     return buildDisplayFlags(getFlagSource(), apiFlags || []);
+  };
+
+  // ================= COMMON EXECUTION FUNCTION =================
+  const executeProgramUntilStep = async (targetStepIndex) => {
+    const stepProgramLines = program.slice(0, targetStepIndex);
+
+    const result = await executeProgram(architectureId, stepProgramLines);
+
+    resetMemoryIfPossible();
+    updateMemoryFromExecutionResult(result);
+
+    const apiRegisters = result?.Registers || result?.registers || [];
+    const apiFlags = result?.Flags || result?.flags || [];
+
+    const updatedRegisters = mapApiRegistersWithDbNames(apiRegisters);
+    const updatedFlags = mapApiFlagsWithDbNames(apiFlags);
+
+    setRegisters(updatedRegisters);
+    setFlags(updatedFlags);
+    setOutput(getOutputFromResult(result));
+
+    const newCurrentLine = targetStepIndex > 0 ? targetStepIndex - 1 : 0;
+
+    setCurrentLine(newCurrentLine);
+    setStepIndex(targetStepIndex);
   };
 
   // ================= STEP FORWARD + MEMORY UPDATE =================
@@ -464,25 +484,7 @@ const Debugging = () => {
       setIsRunning("step");
       setOutput("");
 
-      const stepProgramLines = program.slice(0, stepIndex + 1);
-
-      const result = await executeProgram(architectureId, stepProgramLines);
-
-      // Forward button par memory update
-      updateMemoryFromExecutionResult(result);
-
-      const apiRegisters = result?.Registers || result?.registers || [];
-      const apiFlags = result?.Flags || result?.flags || [];
-
-      const updatedRegisters = mapApiRegistersWithDbNames(apiRegisters);
-      const updatedFlags = mapApiFlagsWithDbNames(apiFlags);
-
-      setRegisters(updatedRegisters);
-      setFlags(updatedFlags);
-      setOutput(getOutputFromResult(result));
-
-      setCurrentLine(stepIndex);
-      setStepIndex((prev) => prev + 1);
+      await executeProgramUntilStep(stepIndex + 1);
     } catch (error) {
       const message = error?.message || error?.toString() || "Step failed";
       setOutput(message);
@@ -491,16 +493,47 @@ const Debugging = () => {
     }
   };
 
-  const handleStepBack = () => {
+  // ================= STEP BACKWARD =================
+  const handleStepBack = async () => {
     if (isAnyLoading) return;
 
-    if (stepIndex > 0) {
-      const prevStep = stepIndex - 1;
-      const prevLine = prevStep > 0 ? prevStep - 1 : 0;
+    if (!architectureId) {
+      setOutput("Architecture ID missing.");
+      return;
+    }
 
-      setStepIndex(prevStep);
-      setCurrentLine(prevLine);
-      updatePC(prevLine);
+    if (!program || program.length === 0) {
+      setOutput("No program found.");
+      return;
+    }
+
+    if (stepIndex <= 0) {
+      setOutput("Already at first instruction.");
+      return;
+    }
+
+    try {
+      setIsRunning("back");
+      setOutput("");
+
+      const targetStepIndex = stepIndex - 1;
+
+      if (targetStepIndex <= 0) {
+        resetMemoryIfPossible();
+        setRegisters(getArchitectureRegisters());
+        setFlags(getArchitectureFlags());
+        setCurrentLine(0);
+        setStepIndex(0);
+        setOutput("Back to initial state.");
+        return;
+      }
+
+      await executeProgramUntilStep(targetStepIndex);
+    } catch (error) {
+      const message = error?.message || error?.toString() || "Backward failed";
+      setOutput(message);
+    } finally {
+      setIsRunning(false);
     }
   };
 
@@ -522,23 +555,7 @@ const Debugging = () => {
       setIsRunning("run");
       setOutput("");
 
-      const result = await executeProgram(architectureId, program);
-
-      // Run button par memory update
-      updateMemoryFromExecutionResult(result);
-
-      const apiRegisters = result?.Registers || result?.registers || [];
-      const apiFlags = result?.Flags || result?.flags || [];
-
-      const updatedRegisters = mapApiRegistersWithDbNames(apiRegisters);
-      const updatedFlags = mapApiFlagsWithDbNames(apiFlags);
-
-      setRegisters(updatedRegisters);
-      setFlags(updatedFlags);
-      setOutput(getOutputFromResult(result));
-
-      setCurrentLine(program.length - 1);
-      setStepIndex(program.length);
+      await executeProgramUntilStep(program.length);
     } catch (error) {
       const message = error?.message || error?.toString() || "Run failed";
       setOutput(message);
@@ -559,24 +576,7 @@ const Debugging = () => {
     setRegisters(getArchitectureRegisters());
     setFlags(getArchitectureFlags());
 
-    const memorySize =
-      Number(architecture?.MemorySize) ||
-      Number(architecture?.memorySize) ||
-      0;
-
-    if (memorySize > 0) {
-      initializeMemory(memorySize);
-    }
-  };
-
-  const updatePC = (value) => {
-    setRegisters((prev) =>
-      prev.map((reg) =>
-        reg.name === "PC" || reg.name === "Pc" || reg.name === "pc"
-          ? { ...reg, value: value }
-          : reg
-      )
-    );
+    resetMemoryIfPossible();
   };
 
   useEffect(() => {
@@ -587,77 +587,87 @@ const Debugging = () => {
   }, [currentLine]);
 
   return (
-    <View style={{ flex: 1 }}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#1E3A8A" />
+  <View style={styles.mainWrapper}>
+    <View style={styles.header}>
+      <TouchableOpacity onPress={() => navigation.goBack()}>
+        <Ionicons name="arrow-back" size={24} color="#1E3A8A" />
+      </TouchableOpacity>
+
+      <Text style={styles.headerTitle}>Debugging</Text>
+
+      <View style={{ width: 24 }} />
+    </View>
+
+    <View style={styles.container}>
+      <View style={styles.buttonRow}>
+        <TouchableOpacity
+          style={[styles.controlBtn, isAnyLoading && styles.disabledBtn]}
+          onPress={handleStepBack}
+          disabled={isAnyLoading}
+        >
+          {isBackLoading ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Ionicons name="arrow-back-outline" size={10} color="#FFFFFF" />
+          )}
+
+          <Text style={styles.controlText}>
+            {isBackLoading ? "Wait" : "Backward"}
+          </Text>
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Debugging</Text>
+        <TouchableOpacity
+          style={[styles.controlBtn, isAnyLoading && styles.disabledBtn]}
+          onPress={handleStepForward}
+          disabled={isAnyLoading}
+        >
+          {isStepLoading ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Ionicons name="arrow-forward-outline" size={10} color="#FFFFFF" />
+          )}
 
-        <View style={{ width: 24 }} />
+          <Text style={styles.controlText}>
+            {isStepLoading ? "Wait" : "Forward"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.controlBtn, isAnyLoading && styles.disabledBtn]}
+          onPress={handleRun}
+          disabled={isAnyLoading}
+        >
+          {isRunLoading ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Ionicons name="play-outline" size={10} color="#FFFFFF" />
+          )}
+
+          <Text style={styles.controlText}>
+            {isRunLoading ? "Running" : "Run"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.controlBtn, isAnyLoading && styles.disabledBtn]}
+          onPress={handleReload}
+          disabled={isAnyLoading}
+        >
+          <Ionicons name="refresh-outline" size={10} color="#FFFFFF" />
+          <Text style={styles.controlText}>Reload</Text>
+        </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.container}>
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.controlBtn, isAnyLoading && styles.disabledBtn]}
-            onPress={handleStepBack}
-            disabled={isAnyLoading}
-          >
-            <Ionicons name="arrow-back-outline" size={10} color="#FFFFFF" />
-            <Text style={styles.controlText}>Backward</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.controlBtn, isAnyLoading && styles.disabledBtn]}
-            onPress={handleStepForward}
-            disabled={isAnyLoading}
-          >
-            {isStepLoading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Ionicons
-                name="arrow-forward-outline"
-                size={10}
-                color="#FFFFFF"
-              />
-            )}
-
-            <Text style={styles.controlText}>
-              {isStepLoading ? "Wait" : "Forward"}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.controlBtn, isAnyLoading && styles.disabledBtn]}
-            onPress={handleRun}
-            disabled={isAnyLoading}
-          >
-            {isRunLoading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Ionicons name="play-outline" size={10} color="#FFFFFF" />
-            )}
-
-            <Text style={styles.controlText}>
-              {isRunLoading ? "Running" : "Run"}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.controlBtn, isAnyLoading && styles.disabledBtn]}
-            onPress={handleReload}
-            disabled={isAnyLoading}
-          >
-            <Ionicons name="refresh-outline" size={10} color="#FFFFFF" />
-            <Text style={styles.controlText}>Reload</Text>
-          </TouchableOpacity>
-        </View>
-
+      {/* ================= TOP HALF: PROGRAM DISPLAY ================= */}
+      <View style={styles.programSection}>
         <Text style={styles.sectionTitle}>Program Display</Text>
 
-        <ScrollView style={styles.programBox} ref={scrollRef}>
+        <ScrollView
+          style={styles.programBox}
+          ref={scrollRef}
+          nestedScrollEnabled={true}
+          showsVerticalScrollIndicator={true}
+        >
           {program.map((line, index) => (
             <Text
               key={index}
@@ -670,66 +680,83 @@ const Debugging = () => {
             </Text>
           ))}
         </ScrollView>
+      </View>
 
-        <Text style={styles.sectionTitle}>Register Display</Text>
+      {/* ================= BOTTOM HALF: REGISTERS + FLAGS ================= */}
+      <View style={styles.registerSection}>
+        <ScrollView
+          style={styles.registerScroll}
+          nestedScrollEnabled={true}
+          showsVerticalScrollIndicator={true}
+        >
+          <Text style={styles.sectionTitle}>Register Display</Text>
 
-        <View style={styles.registerBox}>
-          <View style={styles.dynamicGrid}>
-            {registers.map((reg, index) => (
-              <View key={index} style={styles.dynamicRegItem}>
-                <Text style={styles.regName}>{reg.name}</Text>
-                <View style={styles.valueBox}>
-                  <Text
-                    style={styles.valueText}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.45}
-                  >
-                    {reg.value}
-                  </Text>
+          <View style={styles.registerBox}>
+            <View style={styles.dynamicGrid}>
+              {registers.map((reg, index) => (
+                <View key={index} style={styles.dynamicRegItem}>
+                  <Text style={styles.regName}>{reg.name}</Text>
+
+                  <View style={styles.valueBox}>
+                    <Text
+                      style={styles.valueText}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.45}
+                    >
+                      {reg.value}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            ))}
+              ))}
+            </View>
           </View>
-        </View>
 
-        <Text style={styles.sectionTitle}>Flag Registers</Text>
+          <Text style={styles.sectionTitle}>Flag Registers</Text>
 
-        <View style={styles.registerBox}>
-          <View style={styles.dynamicGrid}>
-            {flags.map((flag, index) => (
-              <View key={index} style={styles.dynamicRegItem}>
-                <Text style={styles.regName}>{flag.name}</Text>
-                <View style={styles.valueBox}>
-                  <Text
-                    style={styles.valueText}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.45}
-                  >
-                    {flag.value}
-                  </Text>
+          <View style={styles.registerBox}>
+            <View style={styles.dynamicGrid}>
+              {flags.map((flag, index) => (
+                <View key={index} style={styles.dynamicRegItem}>
+                  <Text style={styles.regName}>{flag.name}</Text>
+
+                  <View style={styles.valueBox}>
+                    <Text
+                      style={styles.valueText}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.45}
+                    >
+                      {flag.value}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            ))}
+              ))}
+            </View>
           </View>
-        </View>
 
-        <Text style={styles.sectionTitle}>OutPut Display</Text>
+          <Text style={styles.sectionTitle}>OutPut Display</Text>
 
-        <View style={styles.outputBox}>
-          <Text style={styles.outputText}>{output || "No Output"}</Text>
-        </View>
+          <View style={styles.outputBox}>
+            <Text style={styles.outputText}>{output || "No Output"}</Text>
+          </View>
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
+          <View style={{ height: 25 }} />
+        </ScrollView>
+      </View>
     </View>
-  );
+  </View>
+);
 };
 
 export default Debugging;
 
 const styles = StyleSheet.create({
+  mainWrapper: {
+    flex: 1,
+    backgroundColor: "#F4F6FB",
+  },
+
   header: {
     height: 56,
     backgroundColor: "white",
@@ -738,32 +765,28 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
   },
-  container: {
-    flex: 1,
-    backgroundColor: "#F4F6FB",
-    padding: 16,
-  },
+
   headerTitle: {
     color: "#1E3A8A",
     fontSize: 22,
     fontWeight: "bold",
     textAlign: "center",
   },
-  heading: {
-    fontSize: 24,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 20,
-    color: "#2C3E94",
-    paddingVertical: 8,
+
+  container: {
+    flex: 1,
+    backgroundColor: "#F4F6FB",
+    padding: 16,
   },
+
   buttonRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 10,
     width: "100%",
   },
+
   controlBtn: {
     width: "24%",
     flexDirection: "row",
@@ -776,60 +799,73 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: "center",
   },
+
   disabledBtn: {
     opacity: 0.6,
   },
+
   controlText: {
     marginLeft: 2,
     color: "#FFFFFF",
     fontWeight: "600",
     fontSize: 8,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 8,
-    marginTop: 10,
+
+  programSection: {
+    flex: 1,
+    marginBottom: 10,
   },
+
+  registerSection: {
+    flex: 1,
+  },
+
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 6,
+    color: "#111827",
+  },
+
   programBox: {
-    backgroundColor: "#fff",
+    flex: 1,
+    backgroundColor: "#FFFFFF",
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
     borderColor: "#E0E0E0",
-    maxHeight: 250,
   },
+
   programText: {
     paddingVertical: 6,
     color: "#6C7A89",
   },
+
   highlightLine: {
     backgroundColor: "#FFF3A3",
     color: "#000",
     borderRadius: 5,
     paddingHorizontal: 6,
   },
+
+  registerScroll: {
+    flex: 1,
+  },
+
   registerBox: {
-    backgroundColor: "#fff",
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 15,
     borderWidth: 1,
     borderColor: "#E0E0E0",
+    marginBottom: 10,
   },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  regItem: {
-    width: "22%",
-    alignItems: "center",
-    marginBottom: 15,
-  },
+
   regName: {
     marginBottom: 5,
     fontWeight: "500",
   },
+
   valueBox: {
     width: 70,
     height: 45,
@@ -841,17 +877,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9F9F9",
     paddingHorizontal: 4,
   },
+
   valueText: {
     fontSize: 16,
     textAlign: "center",
     width: "100%",
   },
+
   dynamicGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "flex-start",
     gap: 12,
   },
+
   dynamicRegItem: {
     minWidth: 80,
     maxWidth: 110,
@@ -859,21 +898,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 15,
   },
-  outputTitle: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#334155",
-    marginBottom: 4,
-    marginTop: 2,
-  },
+
   outputBox: {
-    backgroundColor: "white",
+    backgroundColor: "#FFFFFF",
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
     borderColor: "#E1E7F5",
     minHeight: 55,
+    marginBottom: 10,
   },
+
   outputText: {
     fontSize: 12,
     color: "#64748B",

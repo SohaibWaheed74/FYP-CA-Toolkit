@@ -99,8 +99,8 @@ const RegisterDesign = () => {
   const addFlagRegister = () => {
     if (!flagRegisterName.trim()) {
       Alert.alert(
-        "Flag Register Optional",
-        "Flag register create karna optional hai. Agar create karna hai to flag register name enter karein, warna direct Next press kar dein."
+        "Flag Register required"
+        
       );
       return;
     }
@@ -236,7 +236,7 @@ const RegisterDesign = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* -------- Flag Register -------- */}
-        <Text style={styles.label}>Flag Register Name</Text>
+        {/* <Text style={styles.label}>Flag Register Name</Text>
         <TextInput
           style={styles.input}
           placeholder="Enter Flag register name"
@@ -277,7 +277,7 @@ const RegisterDesign = () => {
               {flag.isFlagRegister ? "True" : "False"}
             </Text>
           </View>
-        ))}
+        ))} */}
 
         {/* -------- GP Register -------- */}
         <Text style={styles.label}>GP Register Name</Text>
